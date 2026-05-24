@@ -1,0 +1,33 @@
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+/.dart_tool/
+/.pub-cache/
+/.gradle/
+/.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+local.properties
+android/.gradle/
+**/GeneratedPluginRegistrant.*
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
+desktop.ini
+# Keystore and credentials
+*.jks
+*.keystore
+# Env files
+.env
+env.*
+# Logs
+*.log
+# Build outputs
+/build/
+/build/web/
+/build/**
