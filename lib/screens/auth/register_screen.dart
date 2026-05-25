@@ -180,7 +180,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
                       labelText: 'Teléfono',
-                      hintText: '+52 55 1234 5678',
+                      hintText: '+51 999 999 999',
                       prefixIcon: Icon(Icons.phone_outlined),
                     ),
                     validator: (value) {
