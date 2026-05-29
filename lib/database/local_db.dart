@@ -40,6 +40,10 @@ class LocalDB {
         fecha_hora TEXT,
         latitud REAL,
         longitud REAL,
+        box_left REAL,
+        box_top REAL,
+        box_right REAL,
+        box_bottom REAL,
         ruta_imagen TEXT,
         dispositivo_id TEXT,
         sincronizado INTEGER DEFAULT 0,
@@ -60,7 +64,7 @@ class LocalDB {
 
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onConfigure: _onConfigure,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
@@ -88,6 +92,13 @@ class LocalDB {
   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await db.execute('ALTER TABLE usuarios ADD COLUMN telefono TEXT');
+    }
+
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE detecciones ADD COLUMN box_left REAL');
+      await db.execute('ALTER TABLE detecciones ADD COLUMN box_top REAL');
+      await db.execute('ALTER TABLE detecciones ADD COLUMN box_right REAL');
+      await db.execute('ALTER TABLE detecciones ADD COLUMN box_bottom REAL');
     }
   }
 

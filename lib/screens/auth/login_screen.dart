@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import 'register_screen.dart';
+import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -36,7 +37,10 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (success) {
-        print("Login exitoso, redirigiendo...");
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -58,12 +62,14 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Center(
           child: SingleChildScrollView(
             // SingleChildScrollView permite hacer scroll si el teclado tapa contenido
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
             child: Form(
               key: _formKey,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch, // Estira los widgets horizontalmente
+                crossAxisAlignment: CrossAxisAlignment
+                    .stretch, // Estira los widgets horizontalmente
                 children: [
                   // 1. Título / Logo opcional
                   Icon(
@@ -107,7 +113,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         return 'Por favor ingresa tu correo electrónico';
                       }
                       // Validación básica de formato de email
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                          .hasMatch(value)) {
                         return 'Ingresa un correo válido';
                       }
                       return null;
@@ -147,12 +154,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12), // Bordes redondeados modernos
+                        borderRadius: BorderRadius.circular(
+                            12), // Bordes redondeados modernos
                       ),
                     ),
                     child: const Text(
                       'Iniciar Sesión',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                   ),
 
@@ -172,7 +181,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text.rich(
                       TextSpan(
                         text: '¿No tienes cuenta? ',
-                        style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                        style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant),
                         children: [
                           TextSpan(
                             text: 'Regístrate aquí',
