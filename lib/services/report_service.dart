@@ -9,6 +9,17 @@ class ReportService {
     final pdf = pw.Document();
     final generatedAt = DateTime.now();
     final totalMuestras = detecciones.length;
+    final parcelas = detecciones
+    .map((d) => d['nombre_parcela']?.toString().trim())
+    .where((nombre) => nombre != null && nombre.isNotEmpty)
+    .cast<String>()
+    .toSet();
+
+    final parcelaReporte = parcelas.length == 1
+        ? parcelas.first
+        : parcelas.isEmpty
+            ? 'Parcela Principal'
+            : 'Varias parcelas';
     final plagaMasFrecuente = _mostFrequentPest(detecciones);
 
     pdf.addPage(
@@ -18,7 +29,10 @@ class ReportService {
           margin: const pw.EdgeInsets.all(32),
           theme: pw.ThemeData.withFont(),
         ),
-        header: (context) => _buildHeader(generatedAt),
+        header: (context) => _buildHeader(
+            generatedAt,
+            parcelaReporte,
+          ),
         footer: (context) => pw.Container(
           alignment: pw.Alignment.centerRight,
           child: pw.Text(
@@ -58,7 +72,10 @@ class ReportService {
     return file.path;
   }
 
-  pw.Widget _buildHeader(DateTime generatedAt) {
+  pw.Widget _buildHeader(
+      DateTime generatedAt,
+      String parcelaReporte,
+    ) {
     return pw.Container(
       margin: const pw.EdgeInsets.only(bottom: 18),
       padding: const pw.EdgeInsets.only(bottom: 14),
@@ -83,7 +100,7 @@ class ReportService {
           ),
           pw.SizedBox(height: 5),
           pw.Text(
-            'Caserío / Parcela: Parcela Principal',
+            'Caserío / Parcela: $parcelaReporte',
             style: const pw.TextStyle(
               fontSize: 11,
               color: PdfColors.grey800,
@@ -169,6 +186,7 @@ class ReportService {
         children: [
           _headerCell('N° / Fecha'),
           _headerCell('Plaga Detectada'),
+          _headerCell('Parcela'),
           _headerCell('Confianza (%)'),
           _headerCell('Ubicación (Lat/Lon)'),
           _headerCell('Evidencia visual'),
@@ -183,6 +201,8 @@ class ReportService {
       final longitude = _toDouble(detection['longitud']);
       final image = _loadPdfImage(detection['ruta_imagen']?.toString());
       final pestName = detection['nombre_comun']?.toString() ?? 'No disponible';
+      final parcelName =
+        detection['nombre_parcela']?.toString() ?? 'Parcela Principal';
 
       rows.add(
         pw.TableRow(
@@ -192,6 +212,7 @@ class ReportService {
           children: [
             _bodyCell('${index + 1}\n${_formatDateValue(detection['fecha_hora'])}'),
             _bodyCell(pestName),
+            _bodyCell(parcelName),
             _bodyCell('${(confidence * 100).toStringAsFixed(1)}%'),
             _bodyCell(
               'Lat: ${latitude.toStringAsFixed(6)}\n'

@@ -13,8 +13,10 @@ class CropsScreen extends StatefulWidget {
 }
 
 class _CropsScreenState extends State<CropsScreen> {
+  final TextEditingController nombreController = TextEditingController();
+
   Future<void> _showAddCropDialog() async {
-    final nombreController = TextEditingController();
+    nombreController.clear();
 
     final resultado = await showDialog<bool>(
       context: context,
@@ -129,8 +131,6 @@ class _CropsScreenState extends State<CropsScreen> {
       },
     );
 
-    nombreController.dispose();
-
     if (resultado == true && mounted) {
       setState(() {});
     }
@@ -194,6 +194,12 @@ class _CropsScreenState extends State<CropsScreen> {
       speed: 0.0,
       speedAccuracy: 0.0,
     );
+  }
+
+  @override
+  void dispose() {
+    nombreController.dispose();
+    super.dispose();
   }
 
   @override

@@ -34,19 +34,21 @@ class AuthService {
     }
   }
 
-  Future<bool> login(String email, String password) async {
+  Future<Map<String, dynamic>?> login(String email, String password) async {
     final db = await LocalDB.instance.database;
 
     // TODO: Implementar hashing seguro (ej. bcrypt)
     final result = await db.query(
       'usuarios',
-      columns: ['id'],
+      columns: ['id', 'nombre', 'email', 'telefono', 'rol'],
       where: 'email = ? AND password_hash = ?',
       whereArgs: [email, password],
       limit: 1,
     );
 
-    return result.isNotEmpty;
+    if (result.isEmpty) return null;
+
+    return result.first;
   }
 
   String _generateUuidV4() {

@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../services/ai_service.dart';
+import '../../services/crop_service.dart';
 import '../../services/detection_service.dart';
 
 class CaptureScreen extends StatefulWidget {
@@ -22,12 +23,15 @@ class _CaptureScreenState extends State<CaptureScreen> {
   XFile? _selectedImage;
   Uint8List? _selectedImageBytes;
   Map<String, dynamic>? _lastDetection;
+  List<Map<String, dynamic>> _parcelas = [];
+  String? _parcelaSeleccionadaId;
   bool _isAnalyzing = false;
 
   @override
   void initState() {
     super.initState();
     _loadModel();
+    _loadParcelas();
   }
 
   Future<void> _loadModel() async {
@@ -41,6 +45,33 @@ class _CaptureScreenState extends State<CaptureScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _loadParcelas() async {
+    final parcelas = await CropService.instance.getCultivos();
+
+    if (!mounted) return;
+    setState(() {
+      _parcelas = parcelas;
+      if (parcelas.isNotEmpty) {
+        final selectedStillExists = parcelas.any(
+          (parcela) => parcela['id']?.toString() == _parcelaSeleccionadaId,
+        );
+        if (!selectedStillExists) {
+          _parcelaSeleccionadaId = parcelas.first['id']?.toString();
+        }
+      }
+    });
+  }
+
+  String get _nombreParcelaSeleccionada {
+    for (final parcela in _parcelas) {
+      if (parcela['id']?.toString() == _parcelaSeleccionadaId) {
+        return parcela['nombre_parcela']?.toString() ?? 'Parcela Principal';
+      }
+    }
+
+    return 'Parcela Principal';
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -232,6 +263,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
     final confianza = resultado['confianza'];
     final confianzaValor = confianza is num ? confianza.toDouble() : 0.0;
     final confianzaPorcentaje = (confianzaValor * 100).round();
+    final parcelaNombre = _nombreParcelaSeleccionada;
     var isSaving = false;
 
     showModalBottomSheet<void>(
@@ -245,10 +277,11 @@ class _CaptureScreenState extends State<CaptureScreen> {
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 Row(
                   children: [
                     Container(
@@ -274,7 +307,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 Text(
                   'Plaga detectada',
                   style: textTheme.labelLarge?.copyWith(
@@ -289,7 +322,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 Text(
                   'Confianza',
                   style: textTheme.labelLarge?.copyWith(
@@ -318,7 +351,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Icon(
@@ -337,7 +370,25 @@ class _CaptureScreenState extends State<CaptureScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Parcela: $parcelaNombre',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cambiar'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   child: StatefulBuilder(
@@ -370,6 +421,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                                   latitud: latitude,
                                   longitud: longitude,
                                   imageBytes: imageBytes,
+                                  cultivoId: _parcelaSeleccionadaId,
                                   boundingBox: _lastDetection?['box'] is Rect
                                       ? _lastDetection!['box'] as Rect
                                       : null,
@@ -431,7 +483,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
                     },
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -453,11 +506,12 @@ class _CaptureScreenState extends State<CaptureScreen> {
         title: const Text('Capturar Plaga'),
         centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
-        child: Column(
-          children: [
-            Card(
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+          child: Column(
+            children: [
+              Card(
               color: colorScheme.secondaryContainer,
               margin: const EdgeInsets.only(bottom: 24.0),
               child: Padding(
@@ -486,9 +540,52 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 ),
               ),
             ),
-            Expanded(
-              child: Container(
+              if (_parcelas.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: DropdownButtonFormField<String>(
+                    value: _parcelaSeleccionadaId,
+                    decoration: InputDecoration(
+                      labelText: 'Parcela',
+                      prefixIcon: const Icon(Icons.landscape),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    items: _parcelas.map((parcela) {
+                      final id = parcela['id']?.toString() ?? '';
+                      final nombre =
+                          parcela['nombre_parcela']?.toString() ?? 'Sin nombre';
+
+                      return DropdownMenuItem<String>(
+                        value: id,
+                        child: Text(nombre),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _parcelaSeleccionadaId = value;
+                      });
+                    },
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Parcela',
+                      prefixIcon: const Icon(Icons.landscape),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text('Parcela Principal'),
+                  ),
+                ),
+              Container(
                 width: double.infinity,
+                height: MediaQuery.of(context).size.height * 0.35,
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(20),
@@ -555,9 +652,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
                         ],
                       ),
               ),
-            ),
-            const SizedBox(height: 32),
-            Row(
+              const SizedBox(height: 20),
+              Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
@@ -589,8 +685,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            SizedBox(
+              const SizedBox(height: 20),
+              SizedBox(
               width: double.infinity,
               height: 60,
               child: ElevatedButton(
@@ -628,8 +724,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-          ],
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
