@@ -161,6 +161,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               final longitud = _toDouble(deteccion['longitud']);
               final fecha = _formatDate(deteccion['fecha_hora']);
               final imageFile = File(rutaImagen);
+              final nombreParcela = deteccion['nombre_parcela']?.toString() ?? 'Parcela Principal';
 
               return Card(
                 elevation: 1,
@@ -224,6 +225,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 fecha,
                                 style: textTheme.bodySmall?.copyWith(
                                   color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Parcela: $nombreParcela',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                               const SizedBox(height: 8),

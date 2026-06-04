@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../detection/capture_screen.dart';
 import '../history/history_screen.dart';
 import '../crops/crops_screen.dart';
+import '../profile/profile_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -51,10 +52,12 @@ class HomeScreen extends StatelessWidget {
                   color: colorScheme.onPrimaryContainer,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               Text(
                 title,
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: colorScheme.onSurface,
@@ -106,7 +109,7 @@ class HomeScreen extends StatelessWidget {
                   crossAxisCount: 2,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
-                  childAspectRatio: 0.85,
+                  childAspectRatio: 0.75,
                   children: [
                     _buildMenuCard(
                       context: context,
@@ -143,6 +146,12 @@ class HomeScreen extends StatelessWidget {
                       icon: Icons.person_outline_rounded,
                       title: 'Perfil de Usuario',
                       onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ProfileScreen(),
+                          ),
+                        );
                         debugPrint('Navegando al perfil de usuario...');
                       },
                     ),

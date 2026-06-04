@@ -25,6 +25,7 @@ class DetectionService {
     required double longitud,
     required Uint8List imageBytes,
     Rect? boundingBox,
+    String? cultivoId,
   }) async {
     try {
       final rutaImagen = await _saveImageLocally(imageBytes);
@@ -35,11 +36,13 @@ class DetectionService {
       await db.transaction((txn) async {
         final plagaId = await _getOrCreatePlagaId(txn, plagaNombre);
         await _ensureDefaultUser(txn);
-        final cultivoId = await _getOrCreateDefaultCultivoId(txn);
+        final resolvedCultivoId = cultivoId?.trim().isNotEmpty == true
+            ? cultivoId!.trim()
+            : await _getOrCreateDefaultCultivoId(txn);
 
         await txn.insert('detecciones', {
           'id': 'deteccion_${now.microsecondsSinceEpoch}',
-          'cultivo_id': cultivoId,
+          'cultivo_id': resolvedCultivoId,
           'plaga_id': plagaId,
           'plaga_real_manual_id': null,
           'confianza': confianza,
@@ -72,6 +75,7 @@ class DetectionService {
     return db.rawQuery('''
       SELECT
         detecciones.ruta_imagen,
+        cultivos.nombre_parcela,
         plagas.nombre_comun,
         plagas.nombre_cientifico,
         detecciones.confianza,
@@ -84,6 +88,7 @@ class DetectionService {
         detecciones.box_bottom
       FROM detecciones
       INNER JOIN plagas ON detecciones.plaga_id = plagas.id
+      LEFT JOIN cultivos ON detecciones.cultivo_id = cultivos.id
       ORDER BY detecciones.fecha_hora DESC
     ''');
   }
