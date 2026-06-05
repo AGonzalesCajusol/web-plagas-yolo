@@ -51,6 +51,32 @@ class AuthService {
     return result.first;
   }
 
+  Future<bool> updateUserProfile({
+  required String id,
+  required String name,
+  required String email,
+  required String phone,
+}) async {
+  final db = await LocalDB.instance.database;
+
+  try {
+    final rowsAffected = await db.update(
+      'usuarios',
+      {
+        'nombre': name,
+        'email': email,
+        'telefono': phone,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    return rowsAffected > 0;
+  } on DatabaseException {
+    return false;
+  }
+}
+
   String _generateUuidV4() {
     final random = Random.secure();
     final bytes = List<int>.generate(16, (_) => random.nextInt(256));
