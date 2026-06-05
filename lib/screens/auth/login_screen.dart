@@ -32,14 +32,16 @@ class _LoginScreenState extends State<LoginScreen> {
       final email = _emailController.text;
       final password = _passwordController.text;
 
-      final success = await _authService.login(email, password);
+      final user = await _authService.login(email, password);
 
       if (!mounted) return;
 
-      if (success) {
+      if (user != null) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(user: user),
+          ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

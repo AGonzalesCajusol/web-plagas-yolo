@@ -6,7 +6,12 @@ import '../crops/crops_screen.dart';
 import '../profile/profile_screen.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({
+    super.key,
+    required this.user,
+  });
+
+  final Map<String, dynamic> user;
 
   String _getDynamicGreeting() {
     final hour = DateTime.now().hour;
@@ -73,7 +78,9 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-
+    final userName = user['nombre']?.toString().trim().isNotEmpty == true
+        ? user['nombre'].toString()
+        : 'Agricultor';
     return Scaffold(
       backgroundColor: colorScheme.surface,
       body: SafeArea(
@@ -92,12 +99,11 @@ class HomeScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Hola, Agricultor',
-                    style:
-                        Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onSurface,
-                            ),
+                    'Hola, $userName',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
                   ),
                 ],
               ),
@@ -149,7 +155,7 @@ class HomeScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const ProfileScreen(),
+                            builder: (context) => ProfileScreen(user: user),
                           ),
                         );
                         debugPrint('Navegando al perfil de usuario...');
@@ -157,7 +163,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     _buildMenuCard(
                       context: context,
-                      icon: Icons.settings_outlined,
+                      icon: Icons.agriculture_outlined,
                       title: 'Mis parcelas',
                       onTap: () {
                         Navigator.push(

@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../services/profile_service.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({
+    super.key,
+    required this.user,
+  });
+
+  final Map<String, dynamic> user;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -11,11 +17,13 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late Future<Map<String, dynamic>> _metricsFuture;
+late Map<String, dynamic> _currentUser;
 
   @override
   void initState() {
     super.initState();
     _metricsFuture = ProfileService.instance.getDashboardMetrics();
+    _currentUser = Map<String, dynamic>.from(widget.user);
   }
 
   Future<void> _reloadMetrics() async {
@@ -86,7 +94,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showSyncPlaceholder() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Sincronización pendiente: se implementará con Laravel/AWS.'),
+        content:
+            Text('Sincronización pendiente: se implementará con Laravel/AWS.'),
       ),
     );
   }
@@ -95,6 +104,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+
+    final userName = _currentUser['nombre']?.toString().trim().isNotEmpty == true
+        ? _currentUser['nombre'].toString()
+        : 'Agricultor Local';
+
+    final userEmail = _currentUser['email']?.toString() ?? 'Sin correo';
+    final userRole = _currentUser['rol']?.toString() ?? 'AGRICULTOR';
+    debugPrint('USUARIO EN PERFIL: $_currentUser');
 
     return Scaffold(
       appBar: AppBar(
@@ -159,7 +176,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Agricultor Local',
+                                userName,
                                 style: textTheme.titleLarge?.copyWith(
                                   color: colorScheme.onPrimaryContainer,
                                   fontWeight: FontWeight.bold,
@@ -167,7 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Panel de control offline',
+                                '$userRole • $userEmail',
                                 style: textTheme.bodyMedium?.copyWith(
                                   color: colorScheme.onPrimaryContainer,
                                 ),
@@ -180,6 +197,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final updatedUser =
+                        await Navigator.push<Map<String, dynamic>>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            EditProfileScreen(user: _currentUser),
+                      ),
+                    );
+
+                    if (updatedUser == null || !mounted) return;
+
+                    setState(() {
+                      _currentUser = updatedUser;
+                    });
+                  },
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Editar datos del usuario'),
+                ),
+                const SizedBox(height: 18),
                 _metricCard(
                   context: context,
                   icon: Icons.analytics_outlined,
@@ -190,13 +228,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   context: context,
                   icon: Icons.bug_report_outlined,
                   title: 'Plaga más frecuente',
-                  value: metrics['plagaMasFrecuente']?.toString() ?? 'Sin datos',
+                  value:
+                      metrics['plagaMasFrecuente']?.toString() ?? 'Sin datos',
                 ),
                 _metricCard(
                   context: context,
                   icon: Icons.landscape_outlined,
                   title: 'Parcela con más incidencias',
-                  value: metrics['parcelaMasAfectada']?.toString() ?? 'Sin datos',
+                  value:
+                      metrics['parcelaMasAfectada']?.toString() ?? 'Sin datos',
                 ),
                 _metricCard(
                   context: context,
