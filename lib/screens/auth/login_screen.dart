@@ -31,11 +31,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_formKey.currentState!.validate()) {
       final email = _emailController.text;
       final password = _passwordController.text;
-
       final user = await _authService.login(email, password);
-
       if (!mounted) return;
-
       if (user != null) {
         Navigator.pushReplacement(
           context,

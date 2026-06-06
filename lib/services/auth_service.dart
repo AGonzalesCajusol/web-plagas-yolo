@@ -51,6 +51,22 @@ class AuthService {
     return result.first;
   }
 
+  Future<Map<String, dynamic>?> getUserById(String id) async {
+  final db = await LocalDB.instance.database;
+
+  final result = await db.query(
+    'usuarios',
+    columns: ['id', 'nombre', 'email', 'telefono', 'rol'],
+    where: 'id = ?',
+    whereArgs: [id],
+    limit: 1,
+  );
+
+  if (result.isEmpty) return null;
+
+  return result.first;
+}
+
   Future<bool> updateUserProfile({
   required String id,
   required String name,
