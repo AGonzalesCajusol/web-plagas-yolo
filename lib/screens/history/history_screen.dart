@@ -162,7 +162,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               final fecha = _formatDate(deteccion['fecha_hora']);
               final imageFile = File(rutaImagen);
               final nombreParcela = deteccion['nombre_parcela']?.toString() ?? 'Parcela Principal';
-
+              
               return Card(
                 elevation: 1,
                 color: colorScheme.surfaceContainerLow,

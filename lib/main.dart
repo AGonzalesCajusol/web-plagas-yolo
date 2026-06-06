@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'screens/auth/login_screen.dart';
 import 'theme/app_theme.dart';
 
-void main() {
-  // Solo necesitas esto para inicializar bindings de Flutter
+void main() { 
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }

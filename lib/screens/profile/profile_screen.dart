@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/profile_service.dart';
 import 'edit_profile_screen.dart';
+import '../auth/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -17,7 +18,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late Future<Map<String, dynamic>> _metricsFuture;
-late Map<String, dynamic> _currentUser;
+  late Map<String, dynamic> _currentUser;
 
   @override
   void initState() {
@@ -100,14 +101,25 @@ late Map<String, dynamic> _currentUser;
     );
   }
 
+  void _logout() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const LoginScreen(),
+      ),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    final userName = _currentUser['nombre']?.toString().trim().isNotEmpty == true
-        ? _currentUser['nombre'].toString()
-        : 'Agricultor Local';
+    final userName =
+        _currentUser['nombre']?.toString().trim().isNotEmpty == true
+            ? _currentUser['nombre'].toString()
+            : 'Agricultor Local';
 
     final userEmail = _currentUser['email']?.toString() ?? 'Sin correo';
     final userRole = _currentUser['rol']?.toString() ?? 'AGRICULTOR';
@@ -255,6 +267,12 @@ late Map<String, dynamic> _currentUser;
                   onPressed: _showSyncPlaceholder,
                   icon: const Icon(Icons.sync_rounded),
                   label: const Text('Sincronizar Datos'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _logout,
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Cerrar sesión'),
                 ),
               ],
             );

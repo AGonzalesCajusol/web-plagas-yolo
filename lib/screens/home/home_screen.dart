@@ -5,13 +5,26 @@ import '../history/history_screen.dart';
 import '../crops/crops_screen.dart';
 import '../profile/profile_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     required this.user,
   });
 
   final Map<String, dynamic> user;
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late Map<String, dynamic> _currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = Map<String, dynamic>.from(widget.user);
+  }
 
   String _getDynamicGreeting() {
     final hour = DateTime.now().hour;
@@ -78,8 +91,8 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final userName = user['nombre']?.toString().trim().isNotEmpty == true
-        ? user['nombre'].toString()
+    final userName = _currentUser['nombre']?.toString().trim().isNotEmpty == true
+        ? _currentUser['nombre'].toString()
         : 'Agricultor';
     return Scaffold(
       backgroundColor: colorScheme.surface,
@@ -155,7 +168,7 @@ class HomeScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => ProfileScreen(user: user),
+                            builder: (context) => ProfileScreen(user: _currentUser),
                           ),
                         );
                         debugPrint('Navegando al perfil de usuario...');
