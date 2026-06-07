@@ -5,20 +5,21 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 class ReportService {
-  Future<String> generateFullReport(List<Map<String, dynamic>> detecciones) async {
+  Future<String> generateFullReport(
+      List<Map<String, dynamic>> detecciones) async {
     final pdf = pw.Document();
     final generatedAt = DateTime.now();
     final totalMuestras = detecciones.length;
     final parcelas = detecciones
-    .map((d) => d['nombre_parcela']?.toString().trim())
-    .where((nombre) => nombre != null && nombre.isNotEmpty)
-    .cast<String>()
-    .toSet();
+        .map((d) => d['nombre_parcela']?.toString().trim())
+        .where((nombre) => nombre != null && nombre.isNotEmpty)
+        .cast<String>()
+        .toSet();
 
     final parcelaReporte = parcelas.length == 1
         ? parcelas.first
         : parcelas.isEmpty
-            ? 'Parcela Principal'
+            ? 'Parcela no registrada'
             : 'Varias parcelas';
     final plagaMasFrecuente = _mostFrequentPest(detecciones);
 
@@ -30,9 +31,9 @@ class ReportService {
           theme: pw.ThemeData.withFont(),
         ),
         header: (context) => _buildHeader(
-            generatedAt,
-            parcelaReporte,
-          ),
+          generatedAt,
+          parcelaReporte,
+        ),
         footer: (context) => pw.Container(
           alignment: pw.Alignment.centerRight,
           child: pw.Text(
@@ -73,9 +74,9 @@ class ReportService {
   }
 
   pw.Widget _buildHeader(
-      DateTime generatedAt,
-      String parcelaReporte,
-    ) {
+    DateTime generatedAt,
+    String parcelaReporte,
+  ) {
     return pw.Container(
       margin: const pw.EdgeInsets.only(bottom: 18),
       padding: const pw.EdgeInsets.only(bottom: 14),
@@ -197,12 +198,19 @@ class ReportService {
     for (var index = 0; index < detecciones.length; index++) {
       final detection = detecciones[index];
       final confidence = _toDouble(detection['confianza']);
-      final latitude = _toDouble(detection['latitud']);
-      final longitude = _toDouble(detection['longitud']);
+      final locationText = _formatLocation(
+        detection['latitud'],
+        detection['longitud'],
+      );
+      final locationOriginText = _formatLocationOrigin(
+        detection['ubicacion_origen'],
+        detection['latitud'],
+        detection['longitud'],
+      );
       final image = _loadPdfImage(detection['ruta_imagen']?.toString());
       final pestName = detection['nombre_comun']?.toString() ?? 'No disponible';
       final parcelName =
-        detection['nombre_parcela']?.toString() ?? 'Parcela Principal';
+          detection['nombre_parcela']?.toString() ?? 'Parcela no registrada';
 
       rows.add(
         pw.TableRow(
@@ -210,14 +218,12 @@ class ReportService {
             color: index.isEven ? PdfColors.white : PdfColors.grey100,
           ),
           children: [
-            _bodyCell('${index + 1}\n${_formatDateValue(detection['fecha_hora'])}'),
+            _bodyCell(
+                '${index + 1}\n${_formatDateValue(detection['fecha_hora'])}'),
             _bodyCell(pestName),
             _bodyCell(parcelName),
             _bodyCell('${(confidence * 100).toStringAsFixed(1)}%'),
-            _bodyCell(
-              'Lat: ${latitude.toStringAsFixed(6)}\n'
-              'Lon: ${longitude.toStringAsFixed(6)}',
-            ),
+            _bodyCell('$locationText\n$locationOriginText'),
             pw.Padding(
               padding: const pw.EdgeInsets.all(6),
               child: _buildEvidenceImage(
@@ -324,11 +330,9 @@ class ReportService {
               left: boxLeft.clamp(0.0, 1.0) * imageWidth,
               top: boxTop.clamp(0.0, 1.0) * imageHeight,
               child: pw.Container(
-                width: (boxRight.clamp(0.0, 1.0) -
-                        boxLeft.clamp(0.0, 1.0)) *
+                width: (boxRight.clamp(0.0, 1.0) - boxLeft.clamp(0.0, 1.0)) *
                     imageWidth,
-                height: (boxBottom.clamp(0.0, 1.0) -
-                        boxTop.clamp(0.0, 1.0)) *
+                height: (boxBottom.clamp(0.0, 1.0) - boxTop.clamp(0.0, 1.0)) *
                     imageHeight,
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(
@@ -408,6 +412,54 @@ class ReportService {
   double _toDouble(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '') ?? 0.0;
+  }
+
+  String _formatLocation(dynamic latitudeValue, dynamic longitudeValue) {
+    final latitude = _nullableDouble(latitudeValue);
+    final longitude = _nullableDouble(longitudeValue);
+
+    if (latitude == null || longitude == null) {
+      return 'Ubicación no disponible';
+    }
+
+    if (latitude == 0.0 && longitude == 0.0) {
+      return 'Ubicación no disponible';
+    }
+
+    return 'Lat: ${latitude.toStringAsFixed(6)}\nLon: ${longitude.toStringAsFixed(6)}';
+  }
+
+  String _formatLocationOrigin(
+    dynamic originValue,
+    dynamic latitudeValue,
+    dynamic longitudeValue,
+  ) {
+    final origin = originValue?.toString();
+    if (origin == null || origin.trim().isEmpty) {
+      final latitude = _nullableDouble(latitudeValue);
+      final longitude = _nullableDouble(longitudeValue);
+      if (latitude == null ||
+          longitude == null ||
+          (latitude == 0.0 && longitude == 0.0)) {
+        return 'Origen: no disponible';
+      }
+      return 'Origen no especificado';
+    }
+
+    switch (origin) {
+      case 'gps':
+        return 'Origen: GPS';
+      case 'ultima_conocida':
+        return 'Origen: última ubicación conocida';
+      case 'parcela':
+        return 'Origen: parcela';
+      case 'manual':
+        return 'Origen: manual';
+      case 'no_disponible':
+        return 'Origen: no disponible';
+      default:
+        return 'Origen no especificado';
+    }
   }
 
   double? _nullableDouble(dynamic value) {

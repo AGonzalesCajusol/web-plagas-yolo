@@ -30,6 +30,50 @@ class DetectionDetailScreen extends StatelessWidget {
     return double.tryParse(value.toString());
   }
 
+  String _formatLocation() {
+    final latitude = _nullableDoubleValue('latitud');
+    final longitude = _nullableDoubleValue('longitud');
+
+    if (latitude == null || longitude == null) {
+      return 'Ubicación no disponible';
+    }
+
+    if (latitude == 0.0 && longitude == 0.0) {
+      return 'Ubicación no disponible';
+    }
+
+    return 'Lat: ${latitude.toStringAsFixed(6)}, Lon: ${longitude.toStringAsFixed(6)}';
+  }
+
+  String _formatLocationOrigin() {
+    final origin = detection['ubicacion_origen']?.toString();
+    if (origin == null || origin.trim().isEmpty) {
+      final latitude = _nullableDoubleValue('latitud');
+      final longitude = _nullableDoubleValue('longitud');
+      if (latitude == null ||
+          longitude == null ||
+          (latitude == 0.0 && longitude == 0.0)) {
+        return 'Origen: no disponible';
+      }
+      return 'Origen no especificado';
+    }
+
+    switch (origin) {
+      case 'gps':
+        return 'GPS';
+      case 'ultima_conocida':
+        return 'Última ubicación conocida';
+      case 'parcela':
+        return 'Parcela';
+      case 'manual':
+        return 'Manual';
+      case 'no_disponible':
+        return 'No disponible';
+      default:
+        return 'Origen no especificado';
+    }
+  }
+
   Future<Size?> _readImageSize(File file) async {
     try {
       final bytes = await file.readAsBytes();
@@ -72,8 +116,12 @@ class DetectionDetailScreen extends StatelessWidget {
     );
     final confidence = _doubleValue('confianza');
     final confidencePercent = (confidence * 100).round();
-    final latitude = _doubleValue('latitud');
-    final longitude = _doubleValue('longitud');
+    final locationText = _formatLocation();
+    final locationOriginText = _formatLocationOrigin();
+    final parcelName = _stringValue(
+      'nombre_parcela',
+      fallback: 'Parcela no registrada',
+    );
     final date = _formatDate(detection['fecha_hora']);
     final boxLeft = _nullableDoubleValue('box_left');
     final boxTop = _nullableDoubleValue('box_top');
@@ -193,6 +241,12 @@ class DetectionDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 14),
                       _DetailRow(
+                        icon: Icons.landscape_outlined,
+                        label: 'Parcela',
+                        value: parcelName,
+                      ),
+                      const SizedBox(height: 14),
+                      _DetailRow(
                         icon: Icons.analytics_outlined,
                         label: 'Confianza',
                         value: '$confidencePercent%',
@@ -201,8 +255,13 @@ class DetectionDetailScreen extends StatelessWidget {
                       _DetailRow(
                         icon: Icons.location_on_outlined,
                         label: 'Ubicación',
-                        value:
-                            'Lat: ${latitude.toStringAsFixed(6)}, Lon: ${longitude.toStringAsFixed(6)}',
+                        value: locationText,
+                      ),
+                      const SizedBox(height: 14),
+                      _DetailRow(
+                        icon: Icons.my_location_outlined,
+                        label: 'Origen de ubicación',
+                        value: locationOriginText,
                       ),
                     ],
                   ),

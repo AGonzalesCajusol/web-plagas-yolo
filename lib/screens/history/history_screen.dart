@@ -8,7 +8,12 @@ import '../../services/report_service.dart';
 import 'detection_detail_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
+  const HistoryScreen({
+    super.key,
+    required this.userId,
+  });
+
+  final String userId;
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -20,7 +25,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _historyFuture = DetectionService().getHistorialDetecciones();
+    _historyFuture = DetectionService().getHistorialDetecciones(
+      userId: widget.userId,
+    );
   }
 
   String _formatDate(dynamic value) {
@@ -39,6 +46,60 @@ class _HistoryScreenState extends State<HistoryScreen> {
   double _toDouble(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '') ?? 0.0;
+  }
+
+  double? _nullableDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
+  String _formatLocation(dynamic latitudeValue, dynamic longitudeValue) {
+    final latitude = _nullableDouble(latitudeValue);
+    final longitude = _nullableDouble(longitudeValue);
+
+    if (latitude == null || longitude == null) {
+      return 'Ubicación no disponible';
+    }
+
+    if (latitude == 0.0 && longitude == 0.0) {
+      return 'Ubicación no disponible';
+    }
+
+    return 'Lat: ${latitude.toStringAsFixed(6)}, Lon: ${longitude.toStringAsFixed(6)}';
+  }
+
+  String _formatLocationOrigin(
+    dynamic originValue,
+    dynamic latitudeValue,
+    dynamic longitudeValue,
+  ) {
+    final origin = originValue?.toString();
+    if (origin == null || origin.trim().isEmpty) {
+      final latitude = _nullableDouble(latitudeValue);
+      final longitude = _nullableDouble(longitudeValue);
+      if (latitude == null ||
+          longitude == null ||
+          (latitude == 0.0 && longitude == 0.0)) {
+        return 'Origen: no disponible';
+      }
+      return 'Origen no especificado';
+    }
+
+    switch (origin) {
+      case 'gps':
+        return 'Origen: GPS';
+      case 'ultima_conocida':
+        return 'Origen: última ubicación conocida';
+      case 'parcela':
+        return 'Origen: parcela';
+      case 'manual':
+        return 'Origen: manual';
+      case 'no_disponible':
+        return 'Origen: no disponible';
+      default:
+        return 'Origen no especificado';
+    }
   }
 
   Future<void> _exportPdf() async {
@@ -157,12 +218,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
               final nombrePlaga =
                   deteccion['nombre_comun']?.toString() ?? 'Sin nombre';
               final confianza = _toDouble(deteccion['confianza']);
-              final latitud = _toDouble(deteccion['latitud']);
-              final longitud = _toDouble(deteccion['longitud']);
+              final ubicacion = _formatLocation(
+                deteccion['latitud'],
+                deteccion['longitud'],
+              );
+              final ubicacionOrigen = _formatLocationOrigin(
+                deteccion['ubicacion_origen'],
+                deteccion['latitud'],
+                deteccion['longitud'],
+              );
               final fecha = _formatDate(deteccion['fecha_hora']);
               final imageFile = File(rutaImagen);
-              final nombreParcela = deteccion['nombre_parcela']?.toString() ?? 'Parcela Principal';
-              
+              final nombreParcela = deteccion['nombre_parcela']?.toString() ??
+                  'Parcela no registrada';
+
               return Card(
                 elevation: 1,
                 color: colorScheme.surfaceContainerLow,
@@ -256,7 +325,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
-                                      'Lat: ${latitud.toStringAsFixed(6)}, Lon: ${longitud.toStringAsFixed(6)}',
+                                      '$ubicacion\n$ubicacionOrigen',
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: textTheme.bodySmall?.copyWith(

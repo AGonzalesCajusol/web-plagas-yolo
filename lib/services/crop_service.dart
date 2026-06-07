@@ -1,6 +1,10 @@
-import 'package:sqflite/sqflite.dart';
-
 import '../database/local_db.dart';
+
+enum DeleteCultivoResult {
+  deleted,
+  hasDetections,
+  notFound,
+}
 
 class CropService {
   factory CropService() => instance;
@@ -9,39 +13,80 @@ class CropService {
 
   static final CropService instance = CropService._();
 
-  static const String _defaultUserId = 'user_123';
-
-  Future<List<Map<String, dynamic>>> getCultivos() async {
+  Future<List<Map<String, dynamic>>> getCultivos({
+    required String userId,
+  }) async {
     final db = await LocalDB.instance.database;
-    return db.query('cultivos');
+    return db.query(
+      'cultivos',
+      where: 'usuario_id = ?',
+      whereArgs: [userId],
+      orderBy: 'nombre_parcela COLLATE NOCASE ASC',
+    );
   }
 
-  Future<String> addCultivo(String nombre, String coordenadas) async {
+  Future<String> addCultivo({
+    required String userId,
+    required String nombre,
+    required String coordenadas,
+  }) async {
     final db = await LocalDB.instance.database;
     final cultivoId = DateTime.now().microsecondsSinceEpoch.toString();
 
-    await db.transaction((txn) async {
-      await txn.insert(
-        'usuarios',
-        {
-          'id': _defaultUserId,
-          'nombre': 'Agricultor Local',
-          'email': 'agricultor@test.com',
-          'telefono': '',
-          'password_hash': '',
-          'rol': 'AGRICULTOR',
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
-
-      await txn.insert('cultivos', {
-        'id': cultivoId,
-        'usuario_id': _defaultUserId,
-        'nombre_parcela': nombre,
-        'coordenadas_sector': coordenadas,
-      });
+    await db.insert('cultivos', {
+      'id': cultivoId,
+      'usuario_id': userId,
+      'nombre_parcela': nombre,
+      'coordenadas_sector': coordenadas,
     });
 
     return cultivoId;
+  }
+
+  Future<DeleteCultivoResult> deleteCultivo({
+    required String userId,
+    required String cultivoId,
+  }) async {
+    final db = await LocalDB.instance.database;
+    final normalizedUserId = userId.trim();
+    final normalizedCultivoId = cultivoId.trim();
+
+    if (normalizedUserId.isEmpty || normalizedCultivoId.isEmpty) {
+      return DeleteCultivoResult.notFound;
+    }
+
+    final cultivos = await db.query(
+      'cultivos',
+      columns: ['id'],
+      where: 'id = ? AND usuario_id = ?',
+      whereArgs: [normalizedCultivoId, normalizedUserId],
+      limit: 1,
+    );
+
+    if (cultivos.isEmpty) {
+      return DeleteCultivoResult.notFound;
+    }
+
+    final detecciones = await db.query(
+      'detecciones',
+      columns: ['id'],
+      where: 'cultivo_id = ?',
+      whereArgs: [normalizedCultivoId],
+      limit: 1,
+    );
+
+    if (detecciones.isNotEmpty) {
+      return DeleteCultivoResult.hasDetections;
+    }
+
+    final deletedRows = await db.delete(
+      'cultivos',
+      where: 'id = ? AND usuario_id = ?',
+      whereArgs: [normalizedCultivoId, normalizedUserId],
+    );
+
+    return deletedRows > 0
+        ? DeleteCultivoResult.deleted
+        : DeleteCultivoResult.notFound;
   }
 }

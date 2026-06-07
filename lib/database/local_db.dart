@@ -40,6 +40,7 @@ class LocalDB {
         fecha_hora TEXT,
         latitud REAL,
         longitud REAL,
+        ubicacion_origen TEXT,
         box_left REAL,
         box_top REAL,
         box_right REAL,
@@ -64,7 +65,7 @@ class LocalDB {
 
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onConfigure: _onConfigure,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
@@ -99,6 +100,11 @@ class LocalDB {
       await db.execute('ALTER TABLE detecciones ADD COLUMN box_top REAL');
       await db.execute('ALTER TABLE detecciones ADD COLUMN box_right REAL');
       await db.execute('ALTER TABLE detecciones ADD COLUMN box_bottom REAL');
+    }
+
+    if (oldVersion < 4) {
+      await db
+          .execute('ALTER TABLE detecciones ADD COLUMN ubicacion_origen TEXT');
     }
   }
 

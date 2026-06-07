@@ -6,7 +6,14 @@ import 'package:geolocator/geolocator.dart';
 import '../../services/crop_service.dart';
 
 class CropsScreen extends StatefulWidget {
-  const CropsScreen({super.key});
+  const CropsScreen({
+    super.key,
+    required this.userId,
+    this.returnOnCreate = false,
+  });
+
+  final String userId;
+  final bool returnOnCreate;
 
   @override
   State<CropsScreen> createState() => _CropsScreenState();
@@ -15,10 +22,71 @@ class CropsScreen extends StatefulWidget {
 class _CropsScreenState extends State<CropsScreen> {
   final TextEditingController nombreController = TextEditingController();
 
+  Future<void> _confirmDeleteCrop({
+    required String cultivoId,
+    required String nombre,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Eliminar parcela'),
+          content: Text('Se eliminará la parcela "$nombre".'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final result = await CropService.instance.deleteCultivo(
+      userId: widget.userId,
+      cultivoId: cultivoId,
+    );
+
+    if (!mounted) return;
+
+    switch (result) {
+      case DeleteCultivoResult.deleted:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Parcela eliminada correctamente.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        setState(() {});
+      case DeleteCultivoResult.hasDetections:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se puede eliminar esta parcela porque tiene detecciones registradas.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      case DeleteCultivoResult.notFound:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo eliminar la parcela seleccionada.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+    }
+  }
+
   Future<void> _showAddCropDialog() async {
     nombreController.clear();
 
-    final resultado = await showDialog<bool>(
+    final cropId = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
         String? coordenadasCapturadas;
@@ -56,12 +124,12 @@ class _CropsScreenState extends State<CropsScreen> {
                               coordenadasCapturadas = 'Buscando señal GPS...';
                             });
 
-                            final position = await _getCurrentPosition();
+                            final locationText =
+                                await _getCurrentLocationText();
 
                             if (context.mounted) {
                               setDialogState(() {
-                                coordenadasCapturadas =
-                                    '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
+                                coordenadasCapturadas = locationText;
                                 isGettingLocation = false;
                               });
                             }
@@ -111,14 +179,15 @@ class _CropsScreenState extends State<CropsScreen> {
                           });
 
                           final cropId = await CropService.instance.addCultivo(
-                            nombre,
-                            coordenadas,
+                            userId: widget.userId,
+                            nombre: nombre,
+                            coordenadas: coordenadas,
                           );
 
                           debugPrint('Cultivo creado: $cropId');
 
                           if (!context.mounted) return;
-                          Navigator.pop(context, true);
+                          Navigator.pop(context, cropId);
                         },
                   child: isSaving
                       ? const Text('Guardando...')
@@ -131,17 +200,29 @@ class _CropsScreenState extends State<CropsScreen> {
       },
     );
 
-    if (resultado == true && mounted) {
+    if (cropId == null || !mounted) return;
+
+    if (widget.returnOnCreate) {
+      Navigator.pop(context, cropId);
+    } else {
       setState(() {});
     }
   }
 
-  Future<Position> _getCurrentPosition() async {
+  Future<String> _getCurrentLocationText() async {
+    final automaticLocation = await _tryAutomaticLocationText();
+    if (automaticLocation != null) return automaticLocation;
+
+    if (!mounted) return 'Ubicación no disponible';
+    return _showCropLocationFallbackDialog();
+  }
+
+  Future<String?> _tryAutomaticLocationText() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         debugPrint('El servicio de ubicación está deshabilitado.');
-        return _fallbackRegionalPosition();
+        return null;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
@@ -149,51 +230,183 @@ class _CropsScreenState extends State<CropsScreen> {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           debugPrint('Permiso de ubicación denegado.');
-          return _fallbackRegionalPosition();
+          return null;
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
         debugPrint('Permiso de ubicación denegado permanentemente.');
-        return _fallbackRegionalPosition();
+        return null;
+      }
+
+      try {
+        final position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.low,
+          timeLimit: const Duration(seconds: 15),
+        );
+        return _formatPosition(position);
+      } on TimeoutException catch (error) {
+        debugPrint('Timeout obteniendo ubicación actual: $error');
+      } catch (error) {
+        debugPrint('Error obteniendo ubicación actual: $error');
       }
 
       final lastKnownPosition = await Geolocator.getLastKnownPosition();
       if (lastKnownPosition != null) {
-        return lastKnownPosition;
-      }
-
-      try {
-        return await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.low,
-          timeLimit: const Duration(seconds: 5),
-        );
-      } on TimeoutException catch (error) {
-        debugPrint('Timeout obteniendo ubicación actual: $error');
-        return _fallbackRegionalPosition();
-      } catch (error) {
-        debugPrint('Error obteniendo ubicación actual: $error');
-        return _fallbackRegionalPosition();
+        return _formatPosition(lastKnownPosition);
       }
     } catch (error) {
       debugPrint('Error general obteniendo ubicación: $error');
-      return _fallbackRegionalPosition();
     }
+
+    return null;
   }
 
-  Position _fallbackRegionalPosition() {
-    return Position(
-      latitude: -6.771,
-      longitude: -79.840,
-      timestamp: DateTime.now(),
-      accuracy: 0.0,
-      altitude: 0.0,
-      altitudeAccuracy: 0.0,
-      heading: 0.0,
-      headingAccuracy: 0.0,
-      speed: 0.0,
-      speedAccuracy: 0.0,
+  Future<String> _showCropLocationFallbackDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('No se pudo obtener la ubicación automáticamente'),
+          content: const Text(
+            'Puedes registrar una ubicación manualmente o continuar sin coordenadas.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                'Ubicación no disponible',
+              ),
+              child: const Text('Continuar sin ubicación'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final manualLocation = await _showManualLocationDialog();
+                if (manualLocation == null || !dialogContext.mounted) return;
+                Navigator.pop(dialogContext, manualLocation);
+              },
+              child: const Text('Ingresar coordenadas'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final retryLocation = await _tryAutomaticLocationText();
+                if (!dialogContext.mounted) return;
+                Navigator.pop(
+                  dialogContext,
+                  retryLocation ?? 'Ubicación no disponible',
+                );
+              },
+              child: const Text('Reintentar GPS'),
+            ),
+          ],
+        );
+      },
     );
+
+    return result ?? 'Ubicación no disponible';
+  }
+
+  Future<String?> _showManualLocationDialog() async {
+    final latitudeController = TextEditingController();
+    final longitudeController = TextEditingController();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        String? errorText;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Ingresar coordenadas'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: latitudeController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Latitud'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: longitudeController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Longitud'),
+                  ),
+                  if (errorText != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      errorText!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final latitude = double.tryParse(
+                      latitudeController.text.trim().replaceAll(',', '.'),
+                    );
+                    final longitude = double.tryParse(
+                      longitudeController.text.trim().replaceAll(',', '.'),
+                    );
+
+                    if (!_isValidCoordinates(latitude, longitude)) {
+                      setDialogState(() {
+                        errorText = 'Ingresa una latitud y longitud válidas.';
+                      });
+                      return;
+                    }
+
+                    Navigator.pop(
+                      dialogContext,
+                      '${latitude!.toStringAsFixed(6)}, ${longitude!.toStringAsFixed(6)}',
+                    );
+                  },
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    latitudeController.dispose();
+    longitudeController.dispose();
+    return result;
+  }
+
+  String _formatPosition(Position position) {
+    if (!_isValidCoordinates(position.latitude, position.longitude)) {
+      return 'Ubicación no disponible';
+    }
+
+    return '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
+  }
+
+  bool _isValidCoordinates(double? latitude, double? longitude) {
+    if (latitude == null || longitude == null) return false;
+    if (latitude == 0.0 && longitude == 0.0) return false;
+    return latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180;
   }
 
   @override
@@ -219,7 +432,7 @@ class _CropsScreenState extends State<CropsScreen> {
         child: const Icon(Icons.add_location_alt_outlined),
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: CropService.instance.getCultivos(),
+        future: CropService.instance.getCultivos(userId: widget.userId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -265,6 +478,7 @@ class _CropsScreenState extends State<CropsScreen> {
             itemCount: cultivos.length,
             itemBuilder: (context, index) {
               final cultivo = cultivos[index];
+              final cultivoId = cultivo['id']?.toString() ?? '';
               final nombre =
                   cultivo['nombre_parcela']?.toString() ?? 'Sin nombre';
               final coordenadas =
@@ -296,6 +510,17 @@ class _CropsScreenState extends State<CropsScreen> {
                     style: textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
+                  ),
+                  trailing: IconButton(
+                    tooltip: 'Eliminar parcela',
+                    icon: const Icon(Icons.delete_outline),
+                    color: colorScheme.error,
+                    onPressed: cultivoId.isEmpty
+                        ? null
+                        : () => _confirmDeleteCrop(
+                              cultivoId: cultivoId,
+                              nombre: nombre,
+                            ),
                   ),
                 ),
               );

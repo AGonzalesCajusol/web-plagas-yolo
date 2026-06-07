@@ -14,31 +14,35 @@ class DetectionService {
 
   static final DetectionService instance = DetectionService._();
 
-  static const String _defaultUserId = 'user_123';
-  static const String _defaultCultivoId = 'cultivo_parcela_principal';
-  static const String _defaultParcelaNombre = 'Parcela Principal';
-
   Future<bool> saveDetection({
+    required String userId,
     required String plagaNombre,
     required double confianza,
-    required double latitud,
-    required double longitud,
+    required double? latitud,
+    required double? longitud,
+    required String ubicacionOrigen,
     required Uint8List imageBytes,
     Rect? boundingBox,
     String? cultivoId,
   }) async {
     try {
-      final rutaImagen = await _saveImageLocally(imageBytes);
       final db = await LocalDB.instance.database;
       final now = DateTime.now();
       final fechaHora = now.toIso8601String();
+      final resolvedUserId = userId.trim();
+      if (resolvedUserId.isEmpty) return false;
+
+      final resolvedCultivoId = await _resolveCultivoId(
+        db,
+        userId: resolvedUserId,
+        cultivoId: cultivoId,
+      );
+      if (resolvedCultivoId == null) return false;
+
+      final rutaImagen = await _saveImageLocally(imageBytes);
 
       await db.transaction((txn) async {
         final plagaId = await _getOrCreatePlagaId(txn, plagaNombre);
-        await _ensureDefaultUser(txn);
-        final resolvedCultivoId = cultivoId?.trim().isNotEmpty == true
-            ? cultivoId!.trim()
-            : await _getOrCreateDefaultCultivoId(txn);
 
         await txn.insert('detecciones', {
           'id': 'deteccion_${now.microsecondsSinceEpoch}',
@@ -49,6 +53,7 @@ class DetectionService {
           'fecha_hora': fechaHora,
           'latitud': latitud,
           'longitud': longitud,
+          'ubicacion_origen': ubicacionOrigen,
           'box_left': boundingBox?.left,
           'box_top': boundingBox?.top,
           'box_right': boundingBox?.right,
@@ -62,14 +67,16 @@ class DetectionService {
       return true;
     } catch (error, stackTrace) {
       // ignore: avoid_print
-      print('Error guardando detección: $error');
+      print('Error guardando deteccion: $error');
       // ignore: avoid_print
       print(stackTrace);
       return false;
     }
   }
 
-  Future<List<Map<String, dynamic>>> getHistorialDetecciones() async {
+  Future<List<Map<String, dynamic>>> getHistorialDetecciones({
+    required String userId,
+  }) async {
     final db = await LocalDB.instance.database;
 
     return db.rawQuery('''
@@ -82,6 +89,7 @@ class DetectionService {
         detecciones.fecha_hora,
         detecciones.latitud,
         detecciones.longitud,
+        detecciones.ubicacion_origen,
         detecciones.box_left,
         detecciones.box_top,
         detecciones.box_right,
@@ -89,8 +97,9 @@ class DetectionService {
       FROM detecciones
       INNER JOIN plagas ON detecciones.plaga_id = plagas.id
       LEFT JOIN cultivos ON detecciones.cultivo_id = cultivos.id
+      WHERE cultivos.usuario_id = ?
       ORDER BY detecciones.fecha_hora DESC
-    ''');
+    ''', [userId]);
   }
 
   Future<String> _saveImageLocally(Uint8List imageBytes) async {
@@ -124,37 +133,25 @@ class DetectionService {
     return txn.insert('plagas', {
       'nombre_cientifico': plagaNombre,
       'nombre_comun': plagaNombre,
-      'descripcion': 'Registro creado automáticamente desde una detección.',
+      'descripcion': 'Registro creado automaticamente desde una deteccion.',
     });
   }
 
-  Future<void> _ensureDefaultUser(Transaction txn) async {
-    final rows = await txn.query(
-      'usuarios',
-      columns: ['id'],
-      where: 'id = ?',
-      whereArgs: [_defaultUserId],
-      limit: 1,
-    );
+  Future<String?> _resolveCultivoId(
+    Database db, {
+    required String userId,
+    String? cultivoId,
+  }) async {
+    final normalizedCultivoId = cultivoId?.trim();
+    if (normalizedCultivoId == null || normalizedCultivoId.isEmpty) {
+      return null;
+    }
 
-    if (rows.isNotEmpty) return;
-
-    await txn.insert('usuarios', {
-      'id': _defaultUserId,
-      'nombre': 'Usuario de prueba',
-      'email': 'user_123@local.test',
-      'telefono': '',
-      'password_hash': '',
-      'rol': 'agricultor',
-    });
-  }
-
-  Future<String> _getOrCreateDefaultCultivoId(Transaction txn) async {
-    final rows = await txn.query(
+    final rows = await db.query(
       'cultivos',
       columns: ['id'],
-      where: 'usuario_id = ? AND nombre_parcela = ?',
-      whereArgs: [_defaultUserId, _defaultParcelaNombre],
+      where: 'id = ? AND usuario_id = ?',
+      whereArgs: [normalizedCultivoId, userId],
       limit: 1,
     );
 
@@ -162,13 +159,6 @@ class DetectionService {
       return rows.first['id'] as String;
     }
 
-    await txn.insert('cultivos', {
-      'id': _defaultCultivoId,
-      'usuario_id': _defaultUserId,
-      'nombre_parcela': _defaultParcelaNombre,
-      'coordenadas_sector': '0.0,0.0',
-    });
-
-    return _defaultCultivoId;
+    return null;
   }
 }

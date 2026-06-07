@@ -26,6 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _currentUser = Map<String, dynamic>.from(widget.user);
   }
 
+  String get _currentUserId => _currentUser['id']?.toString() ?? '';
+
   String _getDynamicGreeting() {
     final hour = DateTime.now().hour;
     if (hour < 12) {
@@ -91,9 +93,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final userName = _currentUser['nombre']?.toString().trim().isNotEmpty == true
-        ? _currentUser['nombre'].toString()
-        : 'Agricultor';
+    final userName =
+        _currentUser['nombre']?.toString().trim().isNotEmpty == true
+            ? _currentUser['nombre'].toString()
+            : 'Agricultor';
     return Scaffold(
       backgroundColor: colorScheme.surface,
       body: SafeArea(
@@ -138,7 +141,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const CaptureScreen(),
+                            builder: (context) => CaptureScreen(
+                              userId: _currentUserId,
+                            ),
                           ),
                         );
                         debugPrint(
@@ -154,7 +159,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const HistoryScreen(),
+                            builder: (context) => HistoryScreen(
+                              userId: _currentUserId,
+                            ),
                           ),
                         );
                         debugPrint('Navegando al historial de detecciones...');
@@ -168,7 +175,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => ProfileScreen(user: _currentUser),
+                            builder: (context) =>
+                                ProfileScreen(user: _currentUser),
                           ),
                         );
                         debugPrint('Navegando al perfil de usuario...');
@@ -182,7 +190,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const CropsScreen(),
+                            builder: (context) => CropsScreen(
+                              userId: _currentUserId,
+                            ),
                           ),
                         );
                         debugPrint('Navegando a mis parcelas...');

@@ -23,15 +23,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _metricsFuture = ProfileService.instance.getDashboardMetrics();
     _currentUser = Map<String, dynamic>.from(widget.user);
+    _metricsFuture = ProfileService.instance.getDashboardMetrics(
+      userId: _currentUserId,
+    );
   }
 
   Future<void> _reloadMetrics() async {
     setState(() {
-      _metricsFuture = ProfileService.instance.getDashboardMetrics();
+      _metricsFuture = ProfileService.instance.getDashboardMetrics(
+        userId: _currentUserId,
+      );
     });
   }
+
+  String get _currentUserId => _currentUser['id']?.toString() ?? '';
 
   int _toInt(dynamic value) {
     if (value is int) return value;
