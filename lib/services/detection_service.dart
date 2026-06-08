@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../database/local_db.dart';
+import 'dart:developer' as developer;
 
 class DetectionService {
   factory DetectionService() => instance;
@@ -61,15 +62,23 @@ class DetectionService {
           'ruta_imagen': rutaImagen,
           'dispositivo_id': Platform.localHostname,
           'sincronizado': 0,
+          'cloud_id': null,
+          'sync_status': 'pendiente',
+          'last_sync_at': null,
+          'sync_error': null,
+          'retry_count': 0,
         });
       });
 
       return true;
     } catch (error, stackTrace) {
       // ignore: avoid_print
-      print('Error guardando deteccion: $error');
-      // ignore: avoid_print
-      print(stackTrace);
+      developer.log(
+        'Error guardando deteccion: $error',
+        name: 'DetectionService',
+        error: error,
+        stackTrace: stackTrace,
+      );
       return false;
     }
   }
@@ -115,18 +124,37 @@ class DetectionService {
       return false;
     }
 
+    final rows = await db.rawQuery('''
+    SELECT ruta_imagen
+    FROM detecciones
+    WHERE id = ?
+      AND cultivo_id IN (
+        SELECT id FROM cultivos WHERE usuario_id = ?
+      )
+    LIMIT 1
+  ''', [normalizedDetectionId, normalizedUserId]);
+
+    if (rows.isEmpty) return false;
+
+    final imagePath = rows.first['ruta_imagen']?.toString();
+
     final deletedRows = await db.delete(
       'detecciones',
       where: '''
-        id = ?
-        AND cultivo_id IN (
-          SELECT id FROM cultivos WHERE usuario_id = ?
-        )
-      ''',
+      id = ?
+      AND cultivo_id IN (
+        SELECT id FROM cultivos WHERE usuario_id = ?
+      )
+    ''',
       whereArgs: [normalizedDetectionId, normalizedUserId],
     );
 
-    return deletedRows > 0;
+    if (deletedRows > 0) {
+      await _deleteImageIfExists(imagePath);
+      return true;
+    }
+
+    return false;
   }
 
   Future<int> clearUserDetections({
@@ -139,15 +167,37 @@ class DetectionService {
       return 0;
     }
 
-    return db.delete(
+    final rows = await db.rawQuery('''
+    SELECT ruta_imagen
+    FROM detecciones
+    WHERE cultivo_id IN (
+      SELECT id FROM cultivos WHERE usuario_id = ?
+    )
+  ''', [normalizedUserId]);
+
+    final imagePaths = rows
+        .map((row) => row['ruta_imagen']?.toString())
+        .where((path) => path != null && path.trim().isNotEmpty)
+        .cast<String>()
+        .toList();
+
+    final deletedCount = await db.delete(
       'detecciones',
       where: '''
-        cultivo_id IN (
-          SELECT id FROM cultivos WHERE usuario_id = ?
-        )
-      ''',
+      cultivo_id IN (
+        SELECT id FROM cultivos WHERE usuario_id = ?
+      )
+    ''',
       whereArgs: [normalizedUserId],
     );
+
+    if (deletedCount > 0) {
+      for (final imagePath in imagePaths) {
+        await _deleteImageIfExists(imagePath);
+      }
+    }
+
+    return deletedCount;
   }
 
   Future<String> _saveImageLocally(Uint8List imageBytes) async {
@@ -208,5 +258,149 @@ class DetectionService {
     }
 
     return null;
+  }
+
+  Future<void> _deleteImageIfExists(String? imagePath) async {
+    if (imagePath == null || imagePath.trim().isEmpty) return;
+
+    try {
+      final file = File(imagePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (error) {
+      // No detenemos la eliminación del registro si falla el borrado del archivo.
+      developer.log(
+        'No se pudo eliminar la imagen local.',
+        name: 'DetectionService',
+        error: error,
+      );
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingSyncDetections({
+    required String userId,
+    int limit = 20,
+  }) async {
+    final db = await LocalDB.instance.database;
+    final normalizedUserId = userId.trim();
+
+    if (normalizedUserId.isEmpty) {
+      return [];
+    }
+
+    return db.rawQuery('''
+    SELECT
+      detecciones.id,
+      detecciones.cultivo_id,
+      detecciones.plaga_id,
+      detecciones.confianza,
+      detecciones.fecha_hora,
+      detecciones.latitud,
+      detecciones.longitud,
+      detecciones.ubicacion_origen,
+      detecciones.box_left,
+      detecciones.box_top,
+      detecciones.box_right,
+      detecciones.box_bottom,
+      detecciones.ruta_imagen,
+      detecciones.dispositivo_id,
+      detecciones.sincronizado,
+      detecciones.cloud_id,
+      detecciones.sync_status,
+      detecciones.last_sync_at,
+      detecciones.sync_error,
+      detecciones.retry_count,
+      cultivos.nombre_parcela,
+      cultivos.coordenadas_sector,
+      plagas.nombre_comun,
+      plagas.nombre_cientifico
+    FROM detecciones
+    INNER JOIN cultivos ON detecciones.cultivo_id = cultivos.id
+    INNER JOIN plagas ON detecciones.plaga_id = plagas.id
+    WHERE cultivos.usuario_id = ?
+      AND detecciones.sincronizado = 0
+      AND detecciones.sync_status IN ('pendiente', 'error')
+    ORDER BY detecciones.fecha_hora ASC
+    LIMIT ?
+  ''', [normalizedUserId, limit]);
+  }
+
+  Future<bool> markDetectionAsSyncing({
+    required String detectionId,
+  }) async {
+    final db = await LocalDB.instance.database;
+    final normalizedDetectionId = detectionId.trim();
+
+    if (normalizedDetectionId.isEmpty) {
+      return false;
+    }
+
+    final rowsAffected = await db.update(
+      'detecciones',
+      {
+        'sync_status': 'sincronizando',
+        'sync_error': null,
+      },
+      where: 'id = ?',
+      whereArgs: [normalizedDetectionId],
+    );
+
+    return rowsAffected > 0;
+  }
+
+  Future<bool> markDetectionAsSynced({
+    required String detectionId,
+    required String cloudId,
+  }) async {
+    final db = await LocalDB.instance.database;
+    final normalizedDetectionId = detectionId.trim();
+    final normalizedCloudId = cloudId.trim();
+
+    if (normalizedDetectionId.isEmpty || normalizedCloudId.isEmpty) {
+      return false;
+    }
+
+    final rowsAffected = await db.update(
+      'detecciones',
+      {
+        'sincronizado': 1,
+        'cloud_id': normalizedCloudId,
+        'sync_status': 'sincronizado',
+        'last_sync_at': DateTime.now().toIso8601String(),
+        'sync_error': null,
+      },
+      where: 'id = ?',
+      whereArgs: [normalizedDetectionId],
+    );
+
+    return rowsAffected > 0;
+  }
+
+  Future<bool> markDetectionSyncError({
+    required String detectionId,
+    required String errorMessage,
+  }) async {
+    final db = await LocalDB.instance.database;
+    final normalizedDetectionId = detectionId.trim();
+
+    if (normalizedDetectionId.isEmpty) {
+      return false;
+    }
+
+    final rowsAffected = await db.rawUpdate('''
+    UPDATE detecciones
+    SET
+      sync_status = ?,
+      sync_error = ?,
+      retry_count = COALESCE(retry_count, 0) + 1
+    WHERE id = ?
+  ''', [
+      'error',
+      errorMessage,
+      normalizedDetectionId,
+    ]);
+
+    return rowsAffected > 0;
   }
 }

@@ -48,6 +48,11 @@ class LocalDB {
         ruta_imagen TEXT,
         dispositivo_id TEXT,
         sincronizado INTEGER DEFAULT 0,
+        cloud_id TEXT,
+        sync_status TEXT DEFAULT 'pendiente',
+        last_sync_at TEXT,
+        sync_error TEXT,
+        retry_count INTEGER DEFAULT 0,
         FOREIGN KEY(cultivo_id) REFERENCES cultivos(id),
         FOREIGN KEY(plaga_id) REFERENCES plagas(id)
     );
@@ -65,7 +70,7 @@ class LocalDB {
 
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
       onConfigure: _onConfigure,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
@@ -105,6 +110,18 @@ class LocalDB {
     if (oldVersion < 4) {
       await db
           .execute('ALTER TABLE detecciones ADD COLUMN ubicacion_origen TEXT');
+    }
+
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE detecciones ADD COLUMN cloud_id TEXT');
+      await db.execute(
+        "ALTER TABLE detecciones ADD COLUMN sync_status TEXT DEFAULT 'pendiente'",
+      );
+      await db.execute('ALTER TABLE detecciones ADD COLUMN last_sync_at TEXT');
+      await db.execute('ALTER TABLE detecciones ADD COLUMN sync_error TEXT');
+      await db.execute(
+        'ALTER TABLE detecciones ADD COLUMN retry_count INTEGER DEFAULT 0',
+      );
     }
   }
 

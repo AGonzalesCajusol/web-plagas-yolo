@@ -145,10 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               userId: _currentUserId,
                             ),
                           ),
-                        );
-                        debugPrint(
-                          'Navegando a la cámara para detectar plagas...',
-                        );
+                        );                        
                       },
                     ),
                     _buildMenuCard(
@@ -163,8 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               userId: _currentUserId,
                             ),
                           ),
-                        );
-                        debugPrint('Navegando al historial de detecciones...');
+                        );                        
                       },
                     ),
                     _buildMenuCard(
@@ -179,7 +175,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ProfileScreen(user: _currentUser),
                           ),
                         );
-                        debugPrint('Navegando al perfil de usuario...');
                       },
                     ),
                     _buildMenuCard(
@@ -195,7 +190,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                         );
-                        debugPrint('Navegando a mis parcelas...');
                       },
                     ),
                   ],

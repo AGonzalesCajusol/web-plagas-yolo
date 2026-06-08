@@ -179,7 +179,6 @@ class _CaptureScreenState extends State<CaptureScreen> {
       if (image == null) return;
 
       final bytes = await image.readAsBytes();
-      debugPrint('Imagen cargada: ${bytes.lengthInBytes / 1024 / 1024} MB');
 
       if (!mounted) return;
       setState(() {
@@ -316,6 +315,11 @@ class _CaptureScreenState extends State<CaptureScreen> {
       _showLoadingDialog();
       loadingDialogShown = true;
 
+      // Permite que Flutter pinte el diálogo antes de iniciar la inferencia.
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      if (!mounted) return;
+
       final resultado = await AIService.instance.analyzeImage(
         _selectedImageBytes!,
       );
@@ -337,11 +341,13 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
       if (loadingDialogShown) {
         Navigator.of(context, rootNavigator: true).pop();
+        loadingDialogShown = false;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('No se pudo analizar la imagen: $error'),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     } finally {
@@ -374,7 +380,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
               const SizedBox(width: 20),
               Expanded(
                 child: Text(
-                  'Analizando imagen...',
+                  'Procesando predicción...\nEsto puede tardar unos segundos.',
                   style: textTheme.titleMedium?.copyWith(
                     color: colorScheme.onSurface,
                     fontWeight: FontWeight.w600,

@@ -98,12 +98,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showSyncPlaceholder() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content:
-            Text('Sincronización pendiente: se implementará con Laravel/AWS.'),
-      ),
+  void _showSyncPlaceholder({
+    required int pendientes,
+    required int sincronizando,
+    required int sincronizadas,
+    required int errores,
+  }) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Estado de sincronización'),
+          content: Text(
+            'La sincronización con la nube aún no está conectada.\n\n'
+            'Pendientes: $pendientes\n'
+            'En proceso: $sincronizando\n'
+            'Sincronizadas: $sincronizadas\n'
+            'Errores: $errores',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Entendido'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -128,8 +148,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : 'Agricultor Local';
 
     final userEmail = _currentUser['email']?.toString() ?? 'Sin correo';
-    final userRole = _currentUser['rol']?.toString() ?? 'AGRICULTOR';
-    debugPrint('USUARIO EN PERFIL: $_currentUser');
+    final userRole = _currentUser['rol']?.toString() ?? 'AGRICULTOR';    
 
     return Scaffold(
       appBar: AppBar(
@@ -165,6 +184,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             final totalDetecciones = _toInt(metrics['totalDetecciones']);
             final pendientes = _toInt(metrics['pendientesSincronizacion']);
             final sincronizadas = _toInt(metrics['sincronizadas']);
+            final errores = _toInt(metrics['erroresSincronizacion']);
+            final sincronizando = _toInt(metrics['sincronizando']);
 
             return ListView(
               padding: const EdgeInsets.all(20),
@@ -264,13 +285,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 _metricCard(
                   context: context,
+                  icon: Icons.cloud_sync_outlined,
+                  title: 'En proceso de sincronización',
+                  value: sincronizando.toString(),
+                ),
+                _metricCard(
+                  context: context,
+                  icon: Icons.error_outline,
+                  title: 'Errores de sincronización',
+                  value: errores.toString(),
+                ),
+                _metricCard(
+                  context: context,
                   icon: Icons.cloud_done_outlined,
                   title: 'Registros sincronizados',
                   value: sincronizadas.toString(),
                 ),
                 const SizedBox(height: 18),
                 FilledButton.icon(
-                  onPressed: _showSyncPlaceholder,
+                  onPressed: () => _showSyncPlaceholder(
+                    pendientes: pendientes,
+                    sincronizando: sincronizando,
+                    sincronizadas: sincronizadas,
+                    errores: errores,
+                  ),
                   icon: const Icon(Icons.sync_rounded),
                   label: const Text('Sincronizar Datos'),
                 ),

@@ -49,12 +49,28 @@ class ProfileService {
     ''', [userId]);
 
     final syncedResult = await db.rawQuery('''
-      SELECT COUNT(*) AS total
-      FROM detecciones
-      INNER JOIN cultivos ON detecciones.cultivo_id = cultivos.id
-      WHERE sincronizado = 1
-        AND cultivos.usuario_id = ?
-    ''', [userId]);
+  SELECT COUNT(*) AS total
+  FROM detecciones
+  INNER JOIN cultivos ON detecciones.cultivo_id = cultivos.id
+  WHERE sincronizado = 1
+    AND cultivos.usuario_id = ?
+''', [userId]);
+
+    final errorSyncResult = await db.rawQuery('''
+  SELECT COUNT(*) AS total
+  FROM detecciones
+  INNER JOIN cultivos ON detecciones.cultivo_id = cultivos.id
+  WHERE detecciones.sync_status = 'error'
+    AND cultivos.usuario_id = ?
+''', [userId]);
+
+    final syncingResult = await db.rawQuery('''
+  SELECT COUNT(*) AS total
+  FROM detecciones
+  INNER JOIN cultivos ON detecciones.cultivo_id = cultivos.id
+  WHERE detecciones.sync_status = 'sincronizando'
+    AND cultivos.usuario_id = ?
+''', [userId]);
 
     return {
       'totalDetecciones': totalDetectionsResult.first['total'] ?? 0,
@@ -66,6 +82,8 @@ class ProfileService {
           : 'Sin datos',
       'pendientesSincronizacion': pendingSyncResult.first['total'] ?? 0,
       'sincronizadas': syncedResult.first['total'] ?? 0,
+      'erroresSincronizacion': errorSyncResult.first['total'] ?? 0,
+      'sincronizando': syncingResult.first['total'] ?? 0,
     };
   }
 }
