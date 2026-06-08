@@ -241,8 +241,10 @@ class _CropsScreenState extends State<CropsScreen> {
 
       try {
         final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.low,
-          timeLimit: const Duration(seconds: 15),
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.low,
+            timeLimit: Duration(seconds: 15),
+          ),
         );
         return _formatPosition(position);
       } on TimeoutException catch (error) {

@@ -12,18 +12,28 @@ class AuthService {
     String password,
   ) async {
     final db = await LocalDB.instance.database;
+
+    final normalizedName = name.trim();
+    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedPhone = phone.trim();
+    final normalizedPassword = password.trim();
+
+    if (!_isValidName(normalizedName)) return false;
+    if (!_isValidEmail(normalizedEmail)) return false;
+    if (!_isValidPhone(normalizedPhone)) return false;
+    if (!_isValidPassword(normalizedPassword)) return false;
+
     final id = _generateUuidV4();
 
     try {
-      // TODO: Implementar hashing seguro (ej. bcrypt)
       await db.insert(
         'usuarios',
         {
           'id': id,
-          'nombre': name,
-          'email': email,
-          'telefono': phone,
-          'password_hash': password,
+          'nombre': normalizedName,
+          'email': normalizedEmail,
+          'telefono': normalizedPhone,
+          'password_hash': normalizedPassword,
           'rol': 'AGRICULTOR',
         },
         conflictAlgorithm: ConflictAlgorithm.abort,
@@ -37,12 +47,17 @@ class AuthService {
   Future<Map<String, dynamic>?> login(String email, String password) async {
     final db = await LocalDB.instance.database;
 
-    // TODO: Implementar hashing seguro (ej. bcrypt)
+    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedPassword = password.trim();
+
+    if (!_isValidEmail(normalizedEmail)) return null;
+    if (normalizedPassword.isEmpty) return null;
+
     final result = await db.query(
       'usuarios',
       columns: ['id', 'nombre', 'email', 'telefono', 'rol'],
       where: 'email = ? AND password_hash = ?',
-      whereArgs: [email, password],
+      whereArgs: [normalizedEmail, normalizedPassword],
       limit: 1,
     );
 
@@ -52,46 +67,77 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>?> getUserById(String id) async {
-  final db = await LocalDB.instance.database;
+    final db = await LocalDB.instance.database;
+    final normalizedId = id.trim();
 
-  final result = await db.query(
-    'usuarios',
-    columns: ['id', 'nombre', 'email', 'telefono', 'rol'],
-    where: 'id = ?',
-    whereArgs: [id],
-    limit: 1,
-  );
+    if (normalizedId.isEmpty) return null;
 
-  if (result.isEmpty) return null;
-
-  return result.first;
-}
-
-  Future<bool> updateUserProfile({
-  required String id,
-  required String name,
-  required String email,
-  required String phone,
-}) async {
-  final db = await LocalDB.instance.database;
-
-  try {
-    final rowsAffected = await db.update(
+    final result = await db.query(
       'usuarios',
-      {
-        'nombre': name,
-        'email': email,
-        'telefono': phone,
-      },
+      columns: ['id', 'nombre', 'email', 'telefono', 'rol'],
       where: 'id = ?',
-      whereArgs: [id],
+      whereArgs: [normalizedId],
+      limit: 1,
     );
 
-    return rowsAffected > 0;
-  } on DatabaseException {
-    return false;
+    if (result.isEmpty) return null;
+
+    return result.first;
   }
-}
+
+  Future<bool> updateUserProfile({
+    required String id,
+    required String name,
+    required String email,
+    required String phone,
+  }) async {
+    final db = await LocalDB.instance.database;
+
+    final normalizedId = id.trim();
+    final normalizedName = name.trim();
+    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedPhone = phone.trim();
+
+    if (normalizedId.isEmpty) return false;
+    if (!_isValidName(normalizedName)) return false;
+    if (!_isValidEmail(normalizedEmail)) return false;
+    if (!_isValidPhone(normalizedPhone)) return false;
+
+    try {
+      final rowsAffected = await db.update(
+        'usuarios',
+        {
+          'nombre': normalizedName,
+          'email': normalizedEmail,
+          'telefono': normalizedPhone,
+        },
+        where: 'id = ?',
+        whereArgs: [normalizedId],
+      );
+
+      return rowsAffected > 0;
+    } on DatabaseException {
+      return false;
+    }
+  }
+
+  bool _isValidName(String value) {
+    return value.length >= 3;
+  }
+
+  bool _isValidEmail(String value) {
+    final regex = RegExp(r'^[\w\.\-]+@([\w\-]+\.)+[\w\-]{2,}$');
+    return regex.hasMatch(value);
+  }
+
+  bool _isValidPhone(String value) {
+    final onlyNumbers = value.replaceAll(RegExp(r'\D'), '');
+    return onlyNumbers.length >= 9;
+  }
+
+  bool _isValidPassword(String value) {
+    return value.length >= 6;
+  }
 
   String _generateUuidV4() {
     final random = Random.secure();

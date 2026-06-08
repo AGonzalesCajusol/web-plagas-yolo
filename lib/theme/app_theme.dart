@@ -11,15 +11,13 @@ class AppTheme {
     onError: Color(0xFFFFFFFF),
     surface: Color(0xFFFFFFFF),
     onSurface: Color(0xFF1A1C18),
-    background: Color(0xFFF7FAF4),
-    onBackground: Color(0xFF1A1C18),
   );
 
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: _lightColorScheme,
-      scaffoldBackgroundColor: _lightColorScheme.background,
+      scaffoldBackgroundColor: const Color(0xFFF7FAF4),
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
           fontSize: 32,
@@ -51,7 +49,7 @@ class AppTheme {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFFD8DED2)),
-        ), 
+        ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: _lightColorScheme.primary, width: 2),

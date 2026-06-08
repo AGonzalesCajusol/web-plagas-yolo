@@ -81,6 +81,7 @@ class DetectionService {
 
     return db.rawQuery('''
       SELECT
+        detecciones.id,
         detecciones.ruta_imagen,
         cultivos.nombre_parcela,
         plagas.nombre_comun,
@@ -100,6 +101,53 @@ class DetectionService {
       WHERE cultivos.usuario_id = ?
       ORDER BY detecciones.fecha_hora DESC
     ''', [userId]);
+  }
+
+  Future<bool> deleteDetection({
+    required String userId,
+    required String detectionId,
+  }) async {
+    final db = await LocalDB.instance.database;
+    final normalizedUserId = userId.trim();
+    final normalizedDetectionId = detectionId.trim();
+
+    if (normalizedUserId.isEmpty || normalizedDetectionId.isEmpty) {
+      return false;
+    }
+
+    final deletedRows = await db.delete(
+      'detecciones',
+      where: '''
+        id = ?
+        AND cultivo_id IN (
+          SELECT id FROM cultivos WHERE usuario_id = ?
+        )
+      ''',
+      whereArgs: [normalizedDetectionId, normalizedUserId],
+    );
+
+    return deletedRows > 0;
+  }
+
+  Future<int> clearUserDetections({
+    required String userId,
+  }) async {
+    final db = await LocalDB.instance.database;
+    final normalizedUserId = userId.trim();
+
+    if (normalizedUserId.isEmpty) {
+      return 0;
+    }
+
+    return db.delete(
+      'detecciones',
+      where: '''
+        cultivo_id IN (
+          SELECT id FROM cultivos WHERE usuario_id = ?
+        )
+      ''',
+      whereArgs: [normalizedUserId],
+    );
   }
 
   Future<String> _saveImageLocally(Uint8List imageBytes) async {

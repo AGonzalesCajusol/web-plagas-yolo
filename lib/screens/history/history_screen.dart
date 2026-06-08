@@ -20,7 +20,7 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  late final Future<List<Map<String, dynamic>>> _historyFuture;
+  late Future<List<Map<String, dynamic>>> _historyFuture;
 
   @override
   void initState() {
@@ -28,6 +28,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _historyFuture = DetectionService().getHistorialDetecciones(
       userId: widget.userId,
     );
+  }
+
+  void _reloadHistory() {
+    setState(() {
+      _historyFuture = DetectionService().getHistorialDetecciones(
+        userId: widget.userId,
+      );
+    });
   }
 
   String _formatDate(dynamic value) {
@@ -135,9 +143,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       }
 
       if (path.isNotEmpty) {
-        await Share.shareXFiles(
-          [XFile(path)],
-          text: 'Reporte de Plagas de Arroz',
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(path)],
+            text: 'Reporte de Plagas de Arroz',
+          ),
         );
       }
     } catch (error) {
@@ -154,6 +164,98 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  Future<void> _confirmDeleteDetection(String detectionId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Eliminar detección'),
+          content: const Text('¿Deseas eliminar esta detección?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final deleted = await DetectionService().deleteDetection(
+      userId: widget.userId,
+      detectionId: detectionId,
+    );
+
+    if (!mounted) return;
+
+    if (deleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Detección eliminada correctamente.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _reloadHistory();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo eliminar la detección seleccionada.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmClearHistory() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Limpiar historial'),
+          content: const Text(
+            'Esta acción eliminará todas tus detecciones registradas. Tus parcelas no serán eliminadas.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Limpiar historial'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final deletedCount = await DetectionService().clearUserDetections(
+      userId: widget.userId,
+    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          deletedCount == 1
+              ? 'Se eliminó 1 detección.'
+              : 'Se eliminaron $deletedCount detecciones.',
+        ),
+        backgroundColor: Colors.green,
+      ),
+    );
+    _reloadHistory();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -164,6 +266,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
         title: const Text('Historial de Detecciones'),
         centerTitle: true,
         actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Opciones',
+            onSelected: (value) {
+              if (value == 'clear') {
+                _confirmClearHistory();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(
+                value: 'clear',
+                child: Text('Limpiar historial'),
+              ),
+            ],
+          ),
           IconButton(
             tooltip: 'Exportar PDF',
             icon: const Icon(Icons.picture_as_pdf_outlined),
@@ -200,7 +316,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           if (detecciones.isEmpty) {
             return Center(
               child: Text(
-                'No hay detecciones guardadas',
+                'Aún no tienes detecciones registradas',
                 style: textTheme.titleMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
@@ -214,6 +330,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             itemCount: detecciones.length,
             itemBuilder: (context, index) {
               final deteccion = detecciones[index];
+              final detectionId = deteccion['id']?.toString() ?? '';
               final rutaImagen = deteccion['ruta_imagen']?.toString() ?? '';
               final nombrePlaga =
                   deteccion['nombre_comun']?.toString() ?? 'Sin nombre';
@@ -337,6 +454,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               ),
                             ],
                           ),
+                        ),
+                        IconButton(
+                          tooltip: 'Eliminar detección',
+                          icon: const Icon(Icons.delete_outline),
+                          color: colorScheme.error,
+                          onPressed: detectionId.isEmpty
+                              ? null
+                              : () => _confirmDeleteDetection(detectionId),
                         ),
                       ],
                     ),

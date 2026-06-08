@@ -13,16 +13,13 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _authService = AuthService();
-
+  bool _isLoading = false;
   // Controladores
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-
-  // Estado para controlar el botón de carga
-  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -70,7 +67,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('No se pudo registrar el usuario'),
+            content: const Text(
+              'No se pudo registrar. Verifica los datos o usa otro correo.',
+            ),
             backgroundColor: colorScheme.error,
           ),
         );
@@ -188,8 +187,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         return 'Por favor ingresa tu teléfono';
                       }
                       // Validación simple: solo números y al menos 8 dígitos
-                      if (!RegExp(r'^[0-9\+\-\s]{8,}$').hasMatch(value)) {
-                        return 'Ingresa un número válido (mínimo 8 dígitos)';
+                      final onlyNumbers = value.replaceAll(RegExp(r'\D'), '');
+
+                      if (onlyNumbers.length < 9) {
+                        return 'Ingresa un número válido de mínimo 9 dígitos';
                       }
                       return null;
                     },
@@ -250,7 +251,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       // Deshabilitar visualmente si está cargando
                       backgroundColor: _isLoading
-                          ? colorScheme.primary.withOpacity(0.5)
+                          ? colorScheme.primary.withValues(alpha: 0.5)
                           : colorScheme.primary,
                       foregroundColor: colorScheme.onPrimary,
                       textStyle: textTheme.labelLarge,

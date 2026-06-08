@@ -1,9 +1,6 @@
-import 'dart:async';
 import 'dart:typed_data';
-import 'dart:ui' show Rect;
 
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../services/ai_service.dart';
@@ -26,7 +23,6 @@ class CaptureScreen extends StatefulWidget {
 class _CaptureScreenState extends State<CaptureScreen> {
   final ImagePicker _picker = ImagePicker();
 
-  XFile? _selectedImage;
   Uint8List? _selectedImageBytes;
   Map<String, dynamic>? _lastDetection;
   List<Map<String, dynamic>> _parcelas = [];
@@ -175,16 +171,18 @@ class _CaptureScreenState extends State<CaptureScreen> {
     try {
       final XFile? image = await _picker.pickImage(
         source: source,
-        imageQuality: 85,
+        imageQuality: 75,
+        maxWidth: 1280,
+        maxHeight: 1280,
       );
 
       if (image == null) return;
 
       final bytes = await image.readAsBytes();
+      debugPrint('Imagen cargada: ${bytes.lengthInBytes / 1024 / 1024} MB');
 
       if (!mounted) return;
       setState(() {
-        _selectedImage = image;
         _selectedImageBytes = bytes;
         _lastDetection = null;
       });
@@ -208,228 +206,26 @@ class _CaptureScreenState extends State<CaptureScreen> {
     await _pickImage(ImageSource.camera);
   }
 
-  Future<_LocationData?> _tryAutoLocation() async {
-    try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        debugPrint('El servicio de ubicación está deshabilitado.');
-        return null;
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          debugPrint('Permiso de ubicación denegado.');
-          return null;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        debugPrint('Permiso de ubicación denegado permanentemente.');
-        return null;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-        timeLimit: const Duration(seconds: 15),
-      );
-      if (!_isValidCoordinates(position.latitude, position.longitude)) {
-        return null;
-      }
-      return _LocationData(
-        latitude: position.latitude,
-        longitude: position.longitude,
-        origin: 'gps',
-        message: 'Ubicación obtenida por GPS',
-      );
-    } on TimeoutException catch (error) {
-      debugPrint('Tiempo agotado obteniendo ubicación: $error');
-    } catch (error) {
-      debugPrint('Error obteniendo ubicación: $error');
-    }
-
-    try {
-      final lastKnownPosition = await Geolocator.getLastKnownPosition();
-      if (lastKnownPosition != null &&
-          _isValidCoordinates(
-            lastKnownPosition.latitude,
-            lastKnownPosition.longitude,
-          )) {
-        return _LocationData(
-          latitude: lastKnownPosition.latitude,
-          longitude: lastKnownPosition.longitude,
-          origin: 'ultima_conocida',
-          message: 'Usando última ubicación conocida',
-        );
-      }
-    } catch (error) {
-      debugPrint('Error obteniendo última ubicación conocida: $error');
-    }
-
-    return null;
-  }
-
-  Future<_LocationData> _resolveLocationForDetection() async {
-    final autoLocation = await _tryAutoLocation();
-    if (autoLocation != null) return autoLocation;
-
-    if (!mounted) {
-      return _LocationData.unavailable();
-    }
-
-    return await _showLocationFallbackDialog();
-  }
-
-  Future<_LocationData> _showLocationFallbackDialog() async {
+  Future<_LocationData> _resolveLocationForSave() async {
     final parcelaLocation = _selectedParcelaLocation();
 
-    final result = await showDialog<_LocationData>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('No se pudo obtener la ubicación automáticamente'),
-          content: const Text(
-            'Puedes registrar una ubicación manualmente o continuar sin coordenadas.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(
-                dialogContext,
-                _LocationData.unavailable(),
-              ),
-              child: const Text('Continuar sin ubicación'),
-            ),
-            if (parcelaLocation != null)
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, parcelaLocation),
-                child: const Text('Usar ubicación de la parcela'),
-              ),
-            TextButton(
-              onPressed: () async {
-                final manualLocation = await _showManualLocationDialog();
-                if (manualLocation == null || !dialogContext.mounted) return;
-                Navigator.pop(dialogContext, manualLocation);
-              },
-              child: const Text('Ingresar coordenadas'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                final retryLocation = await _tryAutoLocation();
-                if (!dialogContext.mounted) return;
-                Navigator.pop(
-                  dialogContext,
-                  retryLocation ?? _LocationData.unavailable(),
-                );
-              },
-              child: const Text('Reintentar GPS'),
-            ),
-          ],
-        );
-      },
-    );
+    if (parcelaLocation != null) {
+      return parcelaLocation;
+    }
 
-    return result ?? _LocationData.unavailable();
-  }
-
-  Future<_LocationData?> _showManualLocationDialog() async {
-    final latitudeController = TextEditingController();
-    final longitudeController = TextEditingController();
-
-    final result = await showDialog<_LocationData>(
-      context: context,
-      builder: (dialogContext) {
-        String? errorText;
-
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Ingresar coordenadas'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: latitudeController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: true,
-                    ),
-                    decoration: const InputDecoration(labelText: 'Latitud'),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: longitudeController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: true,
-                    ),
-                    decoration: const InputDecoration(labelText: 'Longitud'),
-                  ),
-                  if (errorText != null) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      errorText!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final latitude = double.tryParse(
-                      latitudeController.text.trim().replaceAll(',', '.'),
-                    );
-                    final longitude = double.tryParse(
-                      longitudeController.text.trim().replaceAll(',', '.'),
-                    );
-
-                    if (!_isValidCoordinates(latitude, longitude)) {
-                      setDialogState(() {
-                        errorText = 'Ingresa una latitud y longitud válidas.';
-                      });
-                      return;
-                    }
-
-                    Navigator.pop(
-                      dialogContext,
-                      _LocationData(
-                        latitude: latitude,
-                        longitude: longitude,
-                        origin: 'manual',
-                        message: 'Ubicación ingresada manualmente',
-                      ),
-                    );
-                  },
-                  child: const Text('Guardar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    latitudeController.dispose();
-    longitudeController.dispose();
-    return result;
+    return _LocationData.unavailable();
   }
 
   _LocationData? _selectedParcelaLocation() {
     for (final parcela in _parcelas) {
       if (parcela['id']?.toString() == _parcelaSeleccionadaId) {
-        final parsed = _parseCoordinates(
-          parcela['coordenadas_sector']?.toString(),
-        );
-        if (parsed == null) return null;
+        final rawCoordinates = parcela['coordenadas_sector']?.toString();
+        final parsed = _parseCoordinates(rawCoordinates);
+
+        if (parsed == null) {
+          return null;
+        }
+
         return _LocationData(
           latitude: parsed.$1,
           longitude: parsed.$2,
@@ -444,11 +240,30 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
   (double, double)? _parseCoordinates(String? value) {
     if (value == null || value.trim().isEmpty) return null;
-    final parts = value.split(',');
-    if (parts.length != 2) return null;
-    final latitude = double.tryParse(parts[0].trim());
-    final longitude = double.tryParse(parts[1].trim());
-    if (!_isValidCoordinates(latitude, longitude)) return null;
+
+    final text = value.trim();
+
+    if (text.toLowerCase().contains('no disponible')) {
+      return null;
+    }
+
+    final regex = RegExp(r'-?\d+(?:[.,]\d+)?');
+    final matches = regex.allMatches(text).toList();
+
+    if (matches.length < 2) {
+      return null;
+    }
+
+    final latitudeText = matches[0].group(0)!.replaceAll(',', '.');
+    final longitudeText = matches[1].group(0)!.replaceAll(',', '.');
+
+    final latitude = double.tryParse(latitudeText);
+    final longitude = double.tryParse(longitudeText);
+
+    if (!_isValidCoordinates(latitude, longitude)) {
+      return null;
+    }
+
     return (latitude!, longitude!);
   }
 
@@ -493,38 +308,48 @@ class _CaptureScreenState extends State<CaptureScreen> {
       _isAnalyzing = true;
     });
 
+    var loadingDialogShown = false;
+
     try {
-      final location = await _resolveLocationForDetection();
       if (!mounted) return;
 
       _showLoadingDialog();
+      loadingDialogShown = true;
 
       final resultado = await AIService.instance.analyzeImage(
         _selectedImageBytes!,
       );
 
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
+
+      if (loadingDialogShown) {
+        Navigator.of(context, rootNavigator: true).pop();
+        loadingDialogShown = false;
+      }
+
       setState(() {
         _lastDetection = resultado;
       });
-      _showResultBottomSheet(
-        resultado,
-        location: location,
-      );
+
+      _showResultBottomSheet(resultado);
     } catch (error) {
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
+
+      if (loadingDialogShown) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('No se pudo analizar la imagen: $error'),
         ),
       );
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isAnalyzing = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isAnalyzing = false;
+        });
+      }
     }
   }
 
@@ -563,10 +388,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
     );
   }
 
-  void _showResultBottomSheet(
-    Map<String, dynamic> resultado, {
-    required _LocationData location,
-  }) {
+  void _showResultBottomSheet(Map<String, dynamic> resultado) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final plaga = resultado['plaga']?.toString() ?? 'Resultado desconocido';
@@ -587,6 +409,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
           builder: (context, setBottomSheetState) {
             final parcelaNombre = _nombreParcelaSeleccionada;
             final hasParcelaSeleccionada = _hasParcelaSeleccionada;
+            final locationPreview =
+                _selectedParcelaLocation() ?? _LocationData.unavailable();
 
             return SafeArea(
               child: Padding(
@@ -676,9 +500,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              '${location.message}\n'
-                              '${_formatLocation(location.latitude, location.longitude)}\n'
-                              '${_formatLocationOrigin(location.origin)}',
+                              '${locationPreview.message}\n'
+                              '${_formatLocation(locationPreview.latitude, locationPreview.longitude)}\n'
+                              '${_formatLocationOrigin(locationPreview.origin)}',
                               style: textTheme.bodyMedium?.copyWith(
                                 color: colorScheme.onSurfaceVariant,
                                 fontWeight: FontWeight.w500,
@@ -762,6 +586,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
                                         isSaving = true;
                                       });
 
+                                      final location =
+                                          await _resolveLocationForSave();
+
                                       final success = await DetectionService()
                                           .saveDetection(
                                         userId: widget.userId,
@@ -781,7 +608,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                                       if (!mounted) return;
 
                                       if (success) {
-                                        Navigator.pop(context);
+                                        Navigator.pop(this.context);
                                         ScaffoldMessenger.of(this.context)
                                             .showSnackBar(
                                           const SnackBar(
@@ -795,7 +622,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                                         setButtonState(() {
                                           isSaving = false;
                                         });
-                                        ScaffoldMessenger.of(context)
+                                        ScaffoldMessenger.of(this.context)
                                             .showSnackBar(
                                           const SnackBar(
                                             content: Text(
@@ -900,7 +727,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: DropdownButtonFormField<String>(
-                    value: _parcelaSeleccionadaId,
+                    initialValue: _parcelaSeleccionadaId,
                     decoration: InputDecoration(
                       labelText: 'Parcela',
                       prefixIcon: const Icon(Icons.landscape),
@@ -971,6 +798,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                           Image.memory(
                             _selectedImageBytes!,
                             fit: BoxFit.cover,
+                            cacheWidth: 900,
                           ),
                           if (hasDetectionBox)
                             CustomPaint(
@@ -1006,8 +834,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
                           Icon(
                             Icons.photo_camera_outlined,
                             size: 80,
-                            color:
-                                colorScheme.onSurfaceVariant.withOpacity(0.5),
+                            color: colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.5),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -1128,7 +956,7 @@ class _DetectionBoxPainter extends CustomPainter {
     );
 
     final fillPaint = Paint()
-      ..color = Colors.green.withOpacity(0.16)
+      ..color = Colors.green.withValues(alpha: 0.16)
       ..style = PaintingStyle.fill;
     final strokePaint = Paint()
       ..color = Colors.green
