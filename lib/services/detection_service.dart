@@ -8,6 +8,8 @@ import 'package:sqflite/sqflite.dart';
 import '../database/local_db.dart';
 import 'dart:developer' as developer;
 
+import 'package:device_info_plus/device_info_plus.dart';
+
 class DetectionService {
   factory DetectionService() => instance;
 
@@ -60,7 +62,7 @@ class DetectionService {
           'box_right': boundingBox?.right,
           'box_bottom': boundingBox?.bottom,
           'ruta_imagen': rutaImagen,
-          'dispositivo_id': Platform.localHostname,
+          'dispositivo_id': await _getDeviceName(),
           'sincronizado': 0,
           'cloud_id': null,
           'sync_status': 'pendiente',
@@ -402,5 +404,28 @@ class DetectionService {
     ]);
 
     return rowsAffected > 0;
+  }
+
+  Future<String> _getDeviceName() async {
+    try {
+      final deviceInfo = DeviceInfoPlugin();
+
+      if (Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
+        final manufacturer = androidInfo.manufacturer;
+        final model = androidInfo.model;
+
+        return '$manufacturer $model';
+      }
+
+      if (Platform.isIOS) {
+        final iosInfo = await deviceInfo.iosInfo;
+        return iosInfo.utsname.machine;
+      }
+
+      return Platform.operatingSystem;
+    } catch (_) {
+      return 'Dispositivo móvil';
+    }
   }
 }

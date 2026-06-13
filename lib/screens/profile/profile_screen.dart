@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/profile_service.dart';
 import 'edit_profile_screen.dart';
 import '../auth/login_screen.dart';
+import '../../services/sync_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -20,6 +21,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late Future<Map<String, dynamic>> _metricsFuture;
   late Map<String, dynamic> _currentUser;
 
+  bool _isSyncing = false;
+
   @override
   void initState() {
     super.initState();
@@ -35,6 +38,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
         userId: _currentUserId,
       );
     });
+  }
+
+  Future<void> _syncNow() async {
+    if (_isSyncing) return;
+
+    setState(() {
+      _isSyncing = true;
+    });
+
+    try {
+      final result = await SyncService.instance.syncPendingDetections(
+        user: _currentUser,
+      );
+
+      await _reloadMetrics();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Sincronización finalizada. '
+            'Total: ${result.total}, '
+            'correctas: ${result.synced}, '
+            'errores: ${result.failed}.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo sincronizar: $error'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
+    }
   }
 
   String get _currentUserId => _currentUser['id']?.toString() ?? '';
@@ -98,35 +145,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showSyncPlaceholder({
-    required int pendientes,
-    required int sincronizando,
-    required int sincronizadas,
-    required int errores,
-  }) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Estado de sincronización'),
-          content: Text(
-            'La sincronización con la nube aún no está conectada.\n\n'
-            'Pendientes: $pendientes\n'
-            'En proceso: $sincronizando\n'
-            'Sincronizadas: $sincronizadas\n'
-            'Errores: $errores',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Entendido'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   void _logout() {
     Navigator.pushAndRemoveUntil(
       context,
@@ -148,7 +166,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : 'Agricultor Local';
 
     final userEmail = _currentUser['email']?.toString() ?? 'Sin correo';
-    final userRole = _currentUser['rol']?.toString() ?? 'AGRICULTOR';    
+    final userRole = _currentUser['rol']?.toString() ?? 'AGRICULTOR';
 
     return Scaffold(
       appBar: AppBar(
@@ -303,14 +321,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 18),
                 FilledButton.icon(
-                  onPressed: () => _showSyncPlaceholder(
-                    pendientes: pendientes,
-                    sincronizando: sincronizando,
-                    sincronizadas: sincronizadas,
-                    errores: errores,
-                  ),
-                  icon: const Icon(Icons.sync_rounded),
-                  label: const Text('Sincronizar Datos'),
+                  onPressed: _isSyncing ? null : _syncNow,
+                  icon: _isSyncing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.sync_rounded),
+                  label: Text(
+                      _isSyncing ? 'Sincronizando...' : 'Sincronizar Datos'),
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
