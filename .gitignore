@@ -31,3 +31,28 @@ env.*
 /build/
 /build/web/
 /build/**
+
+# YOLO / ML artifacts
+runs/
+datasets/
+weights/
+*.pt
+*.onnx
+*.engine
+*.tflite
+*.pb
+*.h5
+*.keras
+*.weights
+*.ckpt
+*.pth
+
+# Local media and archives
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+*.mp4
+*.avi
+*.mov
