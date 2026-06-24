@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -14,6 +15,16 @@ class SyncSummary {
   final int total;
   final int synced;
   final int failed;
+}
+
+class ImageUploadData {
+  const ImageUploadData({
+    required this.uploadUrl,
+    required this.imageKey,
+  });
+
+  final String uploadUrl;
+  final String imageKey;
 }
 
 class SyncService {
@@ -67,6 +78,7 @@ class SyncService {
       );
 
       try {
+        final imageKey = await _uploadDetectionImageIfAvailable(detection);
         final response = await http.post(
           Uri.parse('$_baseUrl/sync/detecciones'),
           headers: const {
@@ -94,6 +106,7 @@ class SyncService {
             'box_right': detection['box_right'],
             'box_bottom': detection['box_bottom'],
             'ruta_imagen_local': detection['ruta_imagen'],
+            'image_key': imageKey,
             'imagen_url': null,
             'dispositivo_id': detection['dispositivo_id'],
           }),
@@ -119,9 +132,13 @@ class SyncService {
           failed++;
         }
       } catch (error) {
+        final errorMessage =
+            error.toString().contains('Error al subir imagen a S3')
+                ? 'Error al subir imagen a S3'
+                : error.toString();
         await DetectionService.instance.markDetectionSyncError(
           detectionId: detectionId,
-          errorMessage: error.toString(),
+          errorMessage: errorMessage,
         );
         failed++;
       }
@@ -132,5 +149,99 @@ class SyncService {
       synced: synced,
       failed: failed,
     );
+  }
+
+  Future<String?> _uploadDetectionImageIfAvailable(
+    Map<String, dynamic> detection,
+  ) async {
+    final imagePath = detection['ruta_imagen']?.toString().trim();
+    if (imagePath == null || imagePath.isEmpty) return null;
+
+    final imageFile = File(imagePath);
+    if (!await imageFile.exists()) return null;
+
+    final detectionId = detection['id']?.toString().trim() ?? '';
+    if (detectionId.isEmpty) return null;
+
+    final contentType = _resolveImageContentType(imagePath);
+    if (contentType == null) {
+      throw Exception('Error al subir imagen a S3: formato no soportado');
+    }
+
+    final uploadData = await _requestImageUploadUrl(
+      detectionId: detectionId,
+      contentType: contentType,
+    );
+    final bytes = await imageFile.readAsBytes();
+    final uploadResponse = await http.put(
+      Uri.parse(uploadData.uploadUrl),
+      headers: {
+        'Content-Type': contentType,
+      },
+      body: bytes,
+    );
+
+    if (uploadResponse.statusCode == 200 || uploadResponse.statusCode == 204) {
+      return uploadData.imageKey;
+    }
+
+    throw Exception(
+      'Error al subir imagen a S3: HTTP ${uploadResponse.statusCode}',
+    );
+  }
+
+  Future<ImageUploadData> _requestImageUploadUrl({
+    required String detectionId,
+    required String contentType,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/sync/image-upload-url'),
+      headers: const {
+        'Content-Type': 'application/json; charset=utf-8',
+        'x-api-key': _apiKey,
+      },
+      body: jsonEncode({
+        'detection_id': detectionId,
+        'content_type': contentType,
+      }),
+    );
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        body['ok'] == true) {
+      final uploadUrl = body['upload_url']?.toString() ?? '';
+      final imageKey = body['image_key']?.toString() ?? '';
+
+      if (uploadUrl.isNotEmpty && imageKey.isNotEmpty) {
+        return ImageUploadData(
+          uploadUrl: uploadUrl,
+          imageKey: imageKey,
+        );
+      }
+    }
+
+    final message = body['message']?.toString() ??
+        'Error HTTP ${response.statusCode} solicitando URL de imagen';
+    throw Exception('Error al subir imagen a S3: $message');
+  }
+
+  String? _resolveImageContentType(String path) {
+    final normalizedPath = path.toLowerCase();
+
+    if (normalizedPath.endsWith('.jpg') || normalizedPath.endsWith('.jpeg')) {
+      return 'image/jpeg';
+    }
+
+    if (normalizedPath.endsWith('.png')) {
+      return 'image/png';
+    }
+
+    if (normalizedPath.endsWith('.webp')) {
+      return 'image/webp';
+    }
+
+    return null;
   }
 }
