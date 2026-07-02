@@ -1,0 +1,135 @@
+﻿   1: import 'package:path/path.dart';
+   2: import 'package:sqflite/sqflite.dart';
+   3: 
+   4: class LocalDB {
+   5:   static final LocalDB instance = LocalDB._init();
+   6:   static Database? _database;
+   7:   LocalDB._init();
+   8: 
+   9:   static const String schema = '''
+  10:     CREATE TABLE plagas (
+  11:         id INTEGER PRIMARY KEY AUTOINCREMENT,
+  12:         nombre_cientifico TEXT,
+  13:         nombre_comun TEXT,
+  14:         descripcion TEXT
+  15:     );
+  16: 
+  17:     CREATE TABLE usuarios (
+  18:         id TEXT PRIMARY KEY,
+  19:         nombre TEXT,
+  20:         email TEXT UNIQUE,
+  21:         telefono TEXT,
+  22:         password_hash TEXT,
+  23:         rol TEXT
+  24:     );
+  25: 
+  26:     CREATE TABLE cultivos (
+  27:         id TEXT PRIMARY KEY,
+  28:         usuario_id TEXT,
+  29:         nombre_parcela TEXT,
+  30:         coordenadas_sector TEXT,
+  31:         FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+  32:     );
+  33: 
+  34:     CREATE TABLE detecciones (
+  35:         id TEXT PRIMARY KEY,
+  36:         cultivo_id TEXT,
+  37:         plaga_id INTEGER,
+  38:         plaga_real_manual_id INTEGER,
+  39:         confianza REAL,
+  40:         fecha_hora TEXT,
+  41:         latitud REAL,
+  42:         longitud REAL,
+  43:         ubicacion_origen TEXT,
+  44:         box_left REAL,
+  45:         box_top REAL,
+  46:         box_right REAL,
+  47:         box_bottom REAL,
+  48:         ruta_imagen TEXT,
+  49:         dispositivo_id TEXT,
+  50:         sincronizado INTEGER DEFAULT 0,
+  51:         cloud_id TEXT,
+  52:         sync_status TEXT DEFAULT 'pendiente',
+  53:         last_sync_at TEXT,
+  54:         sync_error TEXT,
+  55:         retry_count INTEGER DEFAULT 0,
+  56:         FOREIGN KEY(cultivo_id) REFERENCES cultivos(id),
+  57:         FOREIGN KEY(plaga_id) REFERENCES plagas(id)
+  58:     );
+  59:   ''';
+  60: 
+  61:   Future<Database> get database async {
+  62:     if (_database != null) return _database!;
+  63:     _database = await _initDB('plagas_arroz.db');
+  64:     return _database!;
+  65:   }
+  66: 
+  67:   Future<Database> _initDB(String filePath) async {
+  68:     final dbPath = await getDatabasesPath();
+  69:     final path = join(dbPath, filePath);
+  70: 
+  71:     return openDatabase(
+  72:       path,
+  73:       version: 5,
+  74:       onConfigure: _onConfigure,
+  75:       onCreate: _createDB,
+  76:       onUpgrade: _upgradeDB,
+  77:     );
+  78:   }
+  79: 
+  80:   Future<void> _onConfigure(Database db) async {
+  81:     await db.execute('PRAGMA foreign_keys = ON');
+  82:   }
+  83: 
+  84:   Future<void> _createDB(Database db, int version) async {
+  85:     final statements = schema.split(';');
+  86:     final batch = db.batch();
+  87: 
+  88:     for (final statement in statements) {
+  89:       final trimmed = statement.trim();
+  90:       if (trimmed.isNotEmpty) {
+  91:         batch.execute(trimmed);
+  92:       }
+  93:     }
+  94: 
+  95:     await batch.commit(noResult: true);
+  96:   }
+  97: 
+  98:   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+  99:     if (oldVersion < 2) {
+ 100:       await db.execute('ALTER TABLE usuarios ADD COLUMN telefono TEXT');
+ 101:     }
+ 102: 
+ 103:     if (oldVersion < 3) {
+ 104:       await db.execute('ALTER TABLE detecciones ADD COLUMN box_left REAL');
+ 105:       await db.execute('ALTER TABLE detecciones ADD COLUMN box_top REAL');
+ 106:       await db.execute('ALTER TABLE detecciones ADD COLUMN box_right REAL');
+ 107:       await db.execute('ALTER TABLE detecciones ADD COLUMN box_bottom REAL');
+ 108:     }
+ 109: 
+ 110:     if (oldVersion < 4) {
+ 111:       await db
+ 112:           .execute('ALTER TABLE detecciones ADD COLUMN ubicacion_origen TEXT');
+ 113:     }
+ 114: 
+ 115:     if (oldVersion < 5) {
+ 116:       await db.execute('ALTER TABLE detecciones ADD COLUMN cloud_id TEXT');
+ 117:       await db.execute(
+ 118:         "ALTER TABLE detecciones ADD COLUMN sync_status TEXT DEFAULT 'pendiente'",
+ 119:       );
+ 120:       await db.execute('ALTER TABLE detecciones ADD COLUMN last_sync_at TEXT');
+ 121:       await db.execute('ALTER TABLE detecciones ADD COLUMN sync_error TEXT');
+ 122:       await db.execute(
+ 123:         'ALTER TABLE detecciones ADD COLUMN retry_count INTEGER DEFAULT 0',
+ 124:       );
+ 125:     }
+ 126:   }
+ 127: 
+ 128:   Future<void> close() async {
+ 129:     final db = _database;
+ 130:     if (db != null) {
+ 131:       await db.close();
+ 132:       _database = null;
+ 133:     }
+ 134:   }
+ 135: }

@@ -1,0 +1,247 @@
+﻿   1: import 'dart:convert';
+   2: import 'dart:io';
+   3: 
+   4: import 'package:http/http.dart' as http;
+   5: 
+   6: import 'detection_service.dart';
+   7: 
+   8: class SyncSummary {
+   9:   const SyncSummary({
+  10:     required this.total,
+  11:     required this.synced,
+  12:     required this.failed,
+  13:   });
+  14: 
+  15:   final int total;
+  16:   final int synced;
+  17:   final int failed;
+  18: }
+  19: 
+  20: class ImageUploadData {
+  21:   const ImageUploadData({
+  22:     required this.uploadUrl,
+  23:     required this.imageKey,
+  24:   });
+  25: 
+  26:   final String uploadUrl;
+  27:   final String imageKey;
+  28: }
+  29: 
+  30: class SyncService {
+  31:   factory SyncService() => instance;
+  32: 
+  33:   SyncService._();
+  34: 
+  35:   static final SyncService instance = SyncService._();
+  36: 
+  37:   static const String _baseUrl =
+  38:       'https://o5whulvuhi.execute-api.us-east-1.amazonaws.com';
+  39: 
+  40:   static const String _apiKey = 'plagas-mvp-local-key';
+  41: 
+  42:   Future<SyncSummary> syncPendingDetections({
+  43:     required Map<String, dynamic> user,
+  44:   }) async {
+  45:     final userId = user['id']?.toString().trim() ?? '';
+  46: 
+  47:     final userName = user['nombre']?.toString().trim() ?? '';
+  48:     final userEmail = user['email']?.toString().trim() ?? '';
+  49:     final userPhone = user['telefono']?.toString().trim() ?? '';
+  50:     final userRole = user['rol']?.toString().trim() ?? 'AGRICULTOR';
+  51: 
+  52:     if (userId.isEmpty) {
+  53:       return const SyncSummary(
+  54:         total: 0,
+  55:         synced: 0,
+  56:         failed: 0,
+  57:       );
+  58:     }
+  59: 
+  60:     final detections = await DetectionService.instance.getPendingSyncDetections(
+  61:       userId: userId,
+  62:       limit: 20,
+  63:     );
+  64: 
+  65:     var synced = 0;
+  66:     var failed = 0;
+  67: 
+  68:     for (final detection in detections) {
+  69:       final detectionId = detection['id']?.toString() ?? '';
+  70: 
+  71:       if (detectionId.isEmpty) {
+  72:         failed++;
+  73:         continue;
+  74:       }
+  75: 
+  76:       await DetectionService.instance.markDetectionAsSyncing(
+  77:         detectionId: detectionId,
+  78:       );
+  79: 
+  80:       try {
+  81:         final imageKey = await _uploadDetectionImageIfAvailable(detection);
+  82:         final response = await http.post(
+  83:           Uri.parse('$_baseUrl/sync/detecciones'),
+  84:           headers: const {
+  85:             'Content-Type': 'application/json; charset=utf-8',
+  86:             'x-api-key': _apiKey,
+  87:           },
+  88:           body: jsonEncode({
+  89:             'local_id': detectionId,
+  90:             'usuario_id': userId,
+  91:             'usuario_nombre': userName,
+  92:             'usuario_email': userEmail,
+  93:             'usuario_telefono': userPhone,
+  94:             'usuario_rol': userRole,
+  95:             'cultivo_id': detection['cultivo_id'],
+  96:             'parcela_nombre': detection['nombre_parcela'],
+  97:             'plaga_nombre': detection['nombre_comun'],
+  98:             'plaga_cientifica': detection['nombre_cientifico'],
+  99:             'confianza': detection['confianza'],
+ 100:             'fecha_hora': detection['fecha_hora'],
+ 101:             'latitud': detection['latitud'],
+ 102:             'longitud': detection['longitud'],
+ 103:             'ubicacion_origen': detection['ubicacion_origen'],
+ 104:             'box_left': detection['box_left'],
+ 105:             'box_top': detection['box_top'],
+ 106:             'box_right': detection['box_right'],
+ 107:             'box_bottom': detection['box_bottom'],
+ 108:             'ruta_imagen_local': detection['ruta_imagen'],
+ 109:             'image_key': imageKey,
+ 110:             'imagen_url': null,
+ 111:             'dispositivo_id': detection['dispositivo_id'],
+ 112:           }),
+ 113:         );
+ 114: 
+ 115:         final body = jsonDecode(response.body) as Map<String, dynamic>;
+ 116: 
+ 117:         if (response.statusCode >= 200 &&
+ 118:             response.statusCode < 300 &&
+ 119:             body['ok'] == true) {
+ 120:           await DetectionService.instance.markDetectionAsSynced(
+ 121:             detectionId: detectionId,
+ 122:             cloudId: body['cloud_id']?.toString() ?? detectionId,
+ 123:           );
+ 124:           synced++;
+ 125:         } else {
+ 126:           final message = body['message']?.toString() ??
+ 127:               'Error HTTP ${response.statusCode} al sincronizar';
+ 128:           await DetectionService.instance.markDetectionSyncError(
+ 129:             detectionId: detectionId,
+ 130:             errorMessage: message,
+ 131:           );
+ 132:           failed++;
+ 133:         }
+ 134:       } catch (error) {
+ 135:         final errorMessage =
+ 136:             error.toString().contains('Error al subir imagen a S3')
+ 137:                 ? 'Error al subir imagen a S3'
+ 138:                 : error.toString();
+ 139:         await DetectionService.instance.markDetectionSyncError(
+ 140:           detectionId: detectionId,
+ 141:           errorMessage: errorMessage,
+ 142:         );
+ 143:         failed++;
+ 144:       }
+ 145:     }
+ 146: 
+ 147:     return SyncSummary(
+ 148:       total: detections.length,
+ 149:       synced: synced,
+ 150:       failed: failed,
+ 151:     );
+ 152:   }
+ 153: 
+ 154:   Future<String?> _uploadDetectionImageIfAvailable(
+ 155:     Map<String, dynamic> detection,
+ 156:   ) async {
+ 157:     final imagePath = detection['ruta_imagen']?.toString().trim();
+ 158:     if (imagePath == null || imagePath.isEmpty) return null;
+ 159: 
+ 160:     final imageFile = File(imagePath);
+ 161:     if (!await imageFile.exists()) return null;
+ 162: 
+ 163:     final detectionId = detection['id']?.toString().trim() ?? '';
+ 164:     if (detectionId.isEmpty) return null;
+ 165: 
+ 166:     final contentType = _resolveImageContentType(imagePath);
+ 167:     if (contentType == null) {
+ 168:       throw Exception('Error al subir imagen a S3: formato no soportado');
+ 169:     }
+ 170: 
+ 171:     final uploadData = await _requestImageUploadUrl(
+ 172:       detectionId: detectionId,
+ 173:       contentType: contentType,
+ 174:     );
+ 175:     final bytes = await imageFile.readAsBytes();
+ 176:     final uploadResponse = await http.put(
+ 177:       Uri.parse(uploadData.uploadUrl),
+ 178:       headers: {
+ 179:         'Content-Type': contentType,
+ 180:       },
+ 181:       body: bytes,
+ 182:     );
+ 183: 
+ 184:     if (uploadResponse.statusCode == 200 || uploadResponse.statusCode == 204) {
+ 185:       return uploadData.imageKey;
+ 186:     }
+ 187: 
+ 188:     throw Exception(
+ 189:       'Error al subir imagen a S3: HTTP ${uploadResponse.statusCode}',
+ 190:     );
+ 191:   }
+ 192: 
+ 193:   Future<ImageUploadData> _requestImageUploadUrl({
+ 194:     required String detectionId,
+ 195:     required String contentType,
+ 196:   }) async {
+ 197:     final response = await http.post(
+ 198:       Uri.parse('$_baseUrl/sync/image-upload-url'),
+ 199:       headers: const {
+ 200:         'Content-Type': 'application/json; charset=utf-8',
+ 201:         'x-api-key': _apiKey,
+ 202:       },
+ 203:       body: jsonEncode({
+ 204:         'detection_id': detectionId,
+ 205:         'content_type': contentType,
+ 206:       }),
+ 207:     );
+ 208: 
+ 209:     final body = jsonDecode(response.body) as Map<String, dynamic>;
+ 210: 
+ 211:     if (response.statusCode >= 200 &&
+ 212:         response.statusCode < 300 &&
+ 213:         body['ok'] == true) {
+ 214:       final uploadUrl = body['upload_url']?.toString() ?? '';
+ 215:       final imageKey = body['image_key']?.toString() ?? '';
+ 216: 
+ 217:       if (uploadUrl.isNotEmpty && imageKey.isNotEmpty) {
+ 218:         return ImageUploadData(
+ 219:           uploadUrl: uploadUrl,
+ 220:           imageKey: imageKey,
+ 221:         );
+ 222:       }
+ 223:     }
+ 224: 
+ 225:     final message = body['message']?.toString() ??
+ 226:         'Error HTTP ${response.statusCode} solicitando URL de imagen';
+ 227:     throw Exception('Error al subir imagen a S3: $message');
+ 228:   }
+ 229: 
+ 230:   String? _resolveImageContentType(String path) {
+ 231:     final normalizedPath = path.toLowerCase();
+ 232: 
+ 233:     if (normalizedPath.endsWith('.jpg') || normalizedPath.endsWith('.jpeg')) {
+ 234:       return 'image/jpeg';
+ 235:     }
+ 236: 
+ 237:     if (normalizedPath.endsWith('.png')) {
+ 238:       return 'image/png';
+ 239:     }
+ 240: 
+ 241:     if (normalizedPath.endsWith('.webp')) {
+ 242:       return 'image/webp';
+ 243:     }
+ 244: 
+ 245:     return null;
+ 246:   }
+ 247: }

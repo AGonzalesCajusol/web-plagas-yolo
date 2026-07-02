@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../services/ai_service.dart';
 import '../../services/crop_service.dart';
 import '../../services/detection_service.dart';
+import '../../services/rice_classifier_service.dart';
 import '../crops/crops_screen.dart';
 
 class CaptureScreen extends StatefulWidget {
@@ -21,9 +23,13 @@ class CaptureScreen extends StatefulWidget {
 }
 
 class _CaptureScreenState extends State<CaptureScreen> {
+  static const double _riceSafeThreshold = 0.30;
+  static const double _noRiceThreshold = 0.50;
+
   final ImagePicker _picker = ImagePicker();
 
   Uint8List? _selectedImageBytes;
+  File? _selectedImageFile;
   Map<String, dynamic>? _lastDetection;
   List<Map<String, dynamic>> _parcelas = [];
   String? _parcelaSeleccionadaId;
@@ -183,6 +189,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
       if (!mounted) return;
       setState(() {
         _selectedImageBytes = bytes;
+        _selectedImageFile = File(image.path);
         _lastDetection = null;
       });
     } catch (error) {
@@ -301,7 +308,12 @@ class _CaptureScreenState extends State<CaptureScreen> {
   }
 
   Future<void> _analyzeCrop() async {
-    if (_selectedImageBytes == null || _isAnalyzing) return;
+    final selectedImageFile = _selectedImageFile;
+    if (_selectedImageBytes == null ||
+        selectedImageFile == null ||
+        _isAnalyzing) {
+      return;
+    }
 
     setState(() {
       _isAnalyzing = true;
@@ -320,15 +332,95 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
       if (!mounted) return;
 
+      await RiceClassifierService.instance.load();
+      final classifierResult =
+          await RiceClassifierService.instance.classifyImageFile(
+        selectedImageFile,
+      );
+
+      debugPrint('[Classifier V2] label=${classifierResult.label}');
+      debugPrint(
+        '[Classifier V2] scoreNoArroz=${classifierResult.scoreNoArroz.toStringAsFixed(4)}',
+      );
+      debugPrint('[Classifier V2] isRice=${classifierResult.isRice}');
+      debugPrint('[Classifier V2] isNoRice=${classifierResult.isNoRice}');
+
+      if (!mounted) return;
+
+      final scoreNoArroz = classifierResult.scoreNoArroz;
+      final isSafeRice = scoreNoArroz <= _riceSafeThreshold;
+      final isNoRice = scoreNoArroz >= _noRiceThreshold;
+
+      if (!isSafeRice) {
+        if (loadingDialogShown) {
+          Navigator.of(context, rootNavigator: true).pop();
+          loadingDialogShown = false;
+        }
+
+        setState(() {
+          _lastDetection = null;
+        });
+
+        if (isNoRice) {
+          debugPrint('[Flow] No arroz, YOLO bloqueado');
+          await _showNoRiceDialog();
+        } else {
+          debugPrint('[Flow] Imagen dudosa, YOLO bloqueado');
+          await _showDoubtfulRiceDialog();
+        }
+        return;
+      }
+
+      debugPrint('[Flow] Arroz seguro, ejecutando YOLO');
+
       final resultado = await AIService.instance.analyzeImage(
         _selectedImageBytes!,
       );
+      final yoloDecision = resultado['decision']?.toString() ?? '';
+      final yoloMessage =
+          resultado['mensaje']?.toString() ?? 'Resultado no disponible';
 
       if (!mounted) return;
 
       if (loadingDialogShown) {
         Navigator.of(context, rootNavigator: true).pop();
         loadingDialogShown = false;
+      }
+
+      if (yoloDecision == 'NO_DETECTION') {
+        setState(() {
+          _lastDetection = null;
+        });
+
+        await _showYoloMessageDialog(
+          title: 'Arroz sin plaga visible',
+          message: 'Arroz sin plaga visible',
+        );
+        return;
+      }
+
+      if (yoloDecision == 'LOW_CONFIDENCE') {
+        setState(() {
+          _lastDetection = null;
+        });
+
+        await _showYoloMessageDialog(
+          title: 'Baja confianza',
+          message: yoloMessage,
+        );
+        return;
+      }
+
+      if (yoloDecision == 'POSSIBLE') {
+        setState(() {
+          _lastDetection = null;
+        });
+
+        await _showYoloMessageDialog(
+          title: 'Resultado dudoso',
+          message: yoloMessage,
+        );
+        return;
       }
 
       setState(() {
@@ -357,6 +449,71 @@ class _CaptureScreenState extends State<CaptureScreen> {
         });
       }
     }
+  }
+
+  Future<void> _showNoRiceDialog() async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Imagen no válida'),
+          content: const Text('No corresponde a cultivo de arroz'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showDoubtfulRiceDialog() async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Imagen dudosa'),
+          content: const Text(
+            'No se pudo confirmar que la imagen sea arroz. Tome otra foto con mejor enfoque.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showYoloMessageDialog({
+    required String title,
+    required String message,
+  }) async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _showLoadingDialog() {
@@ -398,6 +555,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final plaga = resultado['plaga']?.toString() ?? 'Resultado desconocido';
+    final mensajeResultado =
+        resultado['mensaje']?.toString() ?? '$plaga detectada';
     final confianza = resultado['confianza'];
     final confianzaValor = confianza is num ? confianza.toDouble() : 0.0;
     final confianzaPorcentaje = (confianzaValor * 100).round();
@@ -460,7 +619,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        plaga,
+                        mensajeResultado,
                         style: textTheme.headlineSmall?.copyWith(
                           color: colorScheme.onSurface,
                           fontWeight: FontWeight.bold,

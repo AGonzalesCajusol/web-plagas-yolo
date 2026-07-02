@@ -1,0 +1,431 @@
+﻿   1: import 'dart:io';
+   2: import 'dart:typed_data';
+   3: import 'dart:ui' show Rect;
+   4: 
+   5: import 'package:path_provider/path_provider.dart';
+   6: import 'package:sqflite/sqflite.dart';
+   7: 
+   8: import '../database/local_db.dart';
+   9: import 'dart:developer' as developer;
+  10: 
+  11: import 'package:device_info_plus/device_info_plus.dart';
+  12: 
+  13: class DetectionService {
+  14:   factory DetectionService() => instance;
+  15: 
+  16:   DetectionService._();
+  17: 
+  18:   static final DetectionService instance = DetectionService._();
+  19: 
+  20:   Future<bool> saveDetection({
+  21:     required String userId,
+  22:     required String plagaNombre,
+  23:     required double confianza,
+  24:     required double? latitud,
+  25:     required double? longitud,
+  26:     required String ubicacionOrigen,
+  27:     required Uint8List imageBytes,
+  28:     Rect? boundingBox,
+  29:     String? cultivoId,
+  30:   }) async {
+  31:     try {
+  32:       final db = await LocalDB.instance.database;
+  33:       final now = DateTime.now();
+  34:       final fechaHora = now.toIso8601String();
+  35:       final resolvedUserId = userId.trim();
+  36:       if (resolvedUserId.isEmpty) return false;
+  37: 
+  38:       final resolvedCultivoId = await _resolveCultivoId(
+  39:         db,
+  40:         userId: resolvedUserId,
+  41:         cultivoId: cultivoId,
+  42:       );
+  43:       if (resolvedCultivoId == null) return false;
+  44: 
+  45:       final rutaImagen = await _saveImageLocally(imageBytes);
+  46: 
+  47:       await db.transaction((txn) async {
+  48:         final plagaId = await _getOrCreatePlagaId(txn, plagaNombre);
+  49: 
+  50:         await txn.insert('detecciones', {
+  51:           'id': 'deteccion_${now.microsecondsSinceEpoch}',
+  52:           'cultivo_id': resolvedCultivoId,
+  53:           'plaga_id': plagaId,
+  54:           'plaga_real_manual_id': null,
+  55:           'confianza': confianza,
+  56:           'fecha_hora': fechaHora,
+  57:           'latitud': latitud,
+  58:           'longitud': longitud,
+  59:           'ubicacion_origen': ubicacionOrigen,
+  60:           'box_left': boundingBox?.left,
+  61:           'box_top': boundingBox?.top,
+  62:           'box_right': boundingBox?.right,
+  63:           'box_bottom': boundingBox?.bottom,
+  64:           'ruta_imagen': rutaImagen,
+  65:           'dispositivo_id': await _getDeviceName(),
+  66:           'sincronizado': 0,
+  67:           'cloud_id': null,
+  68:           'sync_status': 'pendiente',
+  69:           'last_sync_at': null,
+  70:           'sync_error': null,
+  71:           'retry_count': 0,
+  72:         });
+  73:       });
+  74: 
+  75:       return true;
+  76:     } catch (error, stackTrace) {
+  77:       // ignore: avoid_print
+  78:       developer.log(
+  79:         'Error guardando deteccion: $error',
+  80:         name: 'DetectionService',
+  81:         error: error,
+  82:         stackTrace: stackTrace,
+  83:       );
+  84:       return false;
+  85:     }
+  86:   }
+  87: 
+  88:   Future<List<Map<String, dynamic>>> getHistorialDetecciones({
+  89:     required String userId,
+  90:   }) async {
+  91:     final db = await LocalDB.instance.database;
+  92: 
+  93:     return db.rawQuery('''
+  94:       SELECT
+  95:         detecciones.id,
+  96:         detecciones.ruta_imagen,
+  97:         cultivos.nombre_parcela,
+  98:         plagas.nombre_comun,
+  99:         plagas.nombre_cientifico,
+ 100:         detecciones.confianza,
+ 101:         detecciones.fecha_hora,
+ 102:         detecciones.latitud,
+ 103:         detecciones.longitud,
+ 104:         detecciones.ubicacion_origen,
+ 105:         detecciones.box_left,
+ 106:         detecciones.box_top,
+ 107:         detecciones.box_right,
+ 108:         detecciones.box_bottom
+ 109:       FROM detecciones
+ 110:       INNER JOIN plagas ON detecciones.plaga_id = plagas.id
+ 111:       LEFT JOIN cultivos ON detecciones.cultivo_id = cultivos.id
+ 112:       WHERE cultivos.usuario_id = ?
+ 113:       ORDER BY detecciones.fecha_hora DESC
+ 114:     ''', [userId]);
+ 115:   }
+ 116: 
+ 117:   Future<bool> deleteDetection({
+ 118:     required String userId,
+ 119:     required String detectionId,
+ 120:   }) async {
+ 121:     final db = await LocalDB.instance.database;
+ 122:     final normalizedUserId = userId.trim();
+ 123:     final normalizedDetectionId = detectionId.trim();
+ 124: 
+ 125:     if (normalizedUserId.isEmpty || normalizedDetectionId.isEmpty) {
+ 126:       return false;
+ 127:     }
+ 128: 
+ 129:     final rows = await db.rawQuery('''
+ 130:     SELECT ruta_imagen
+ 131:     FROM detecciones
+ 132:     WHERE id = ?
+ 133:       AND cultivo_id IN (
+ 134:         SELECT id FROM cultivos WHERE usuario_id = ?
+ 135:       )
+ 136:     LIMIT 1
+ 137:   ''', [normalizedDetectionId, normalizedUserId]);
+ 138: 
+ 139:     if (rows.isEmpty) return false;
+ 140: 
+ 141:     final imagePath = rows.first['ruta_imagen']?.toString();
+ 142: 
+ 143:     final deletedRows = await db.delete(
+ 144:       'detecciones',
+ 145:       where: '''
+ 146:       id = ?
+ 147:       AND cultivo_id IN (
+ 148:         SELECT id FROM cultivos WHERE usuario_id = ?
+ 149:       )
+ 150:     ''',
+ 151:       whereArgs: [normalizedDetectionId, normalizedUserId],
+ 152:     );
+ 153: 
+ 154:     if (deletedRows > 0) {
+ 155:       await _deleteImageIfExists(imagePath);
+ 156:       return true;
+ 157:     }
+ 158: 
+ 159:     return false;
+ 160:   }
+ 161: 
+ 162:   Future<int> clearUserDetections({
+ 163:     required String userId,
+ 164:   }) async {
+ 165:     final db = await LocalDB.instance.database;
+ 166:     final normalizedUserId = userId.trim();
+ 167: 
+ 168:     if (normalizedUserId.isEmpty) {
+ 169:       return 0;
+ 170:     }
+ 171: 
+ 172:     final rows = await db.rawQuery('''
+ 173:     SELECT ruta_imagen
+ 174:     FROM detecciones
+ 175:     WHERE cultivo_id IN (
+ 176:       SELECT id FROM cultivos WHERE usuario_id = ?
+ 177:     )
+ 178:   ''', [normalizedUserId]);
+ 179: 
+ 180:     final imagePaths = rows
+ 181:         .map((row) => row['ruta_imagen']?.toString())
+ 182:         .where((path) => path != null && path.trim().isNotEmpty)
+ 183:         .cast<String>()
+ 184:         .toList();
+ 185: 
+ 186:     final deletedCount = await db.delete(
+ 187:       'detecciones',
+ 188:       where: '''
+ 189:       cultivo_id IN (
+ 190:         SELECT id FROM cultivos WHERE usuario_id = ?
+ 191:       )
+ 192:     ''',
+ 193:       whereArgs: [normalizedUserId],
+ 194:     );
+ 195: 
+ 196:     if (deletedCount > 0) {
+ 197:       for (final imagePath in imagePaths) {
+ 198:         await _deleteImageIfExists(imagePath);
+ 199:       }
+ 200:     }
+ 201: 
+ 202:     return deletedCount;
+ 203:   }
+ 204: 
+ 205:   Future<String> _saveImageLocally(Uint8List imageBytes) async {
+ 206:     final directory = await getApplicationDocumentsDirectory();
+ 207:     final detectionsDirectory = Directory('${directory.path}/detecciones');
+ 208: 
+ 209:     if (!await detectionsDirectory.exists()) {
+ 210:       await detectionsDirectory.create(recursive: true);
+ 211:     }
+ 212: 
+ 213:     final fileName = 'deteccion_${DateTime.now().microsecondsSinceEpoch}.jpg';
+ 214:     final imageFile = File('${detectionsDirectory.path}/$fileName');
+ 215:     await imageFile.writeAsBytes(imageBytes, flush: true);
+ 216: 
+ 217:     return imageFile.path;
+ 218:   }
+ 219: 
+ 220:   Future<int> _getOrCreatePlagaId(Transaction txn, String plagaNombre) async {
+ 221:     final rows = await txn.query(
+ 222:       'plagas',
+ 223:       columns: ['id'],
+ 224:       where: 'nombre_comun = ? OR nombre_cientifico = ?',
+ 225:       whereArgs: [plagaNombre, plagaNombre],
+ 226:       limit: 1,
+ 227:     );
+ 228: 
+ 229:     if (rows.isNotEmpty) {
+ 230:       return rows.first['id'] as int;
+ 231:     }
+ 232: 
+ 233:     return txn.insert('plagas', {
+ 234:       'nombre_cientifico': plagaNombre,
+ 235:       'nombre_comun': plagaNombre,
+ 236:       'descripcion': 'Registro creado automaticamente desde una deteccion.',
+ 237:     });
+ 238:   }
+ 239: 
+ 240:   Future<String?> _resolveCultivoId(
+ 241:     Database db, {
+ 242:     required String userId,
+ 243:     String? cultivoId,
+ 244:   }) async {
+ 245:     final normalizedCultivoId = cultivoId?.trim();
+ 246:     if (normalizedCultivoId == null || normalizedCultivoId.isEmpty) {
+ 247:       return null;
+ 248:     }
+ 249: 
+ 250:     final rows = await db.query(
+ 251:       'cultivos',
+ 252:       columns: ['id'],
+ 253:       where: 'id = ? AND usuario_id = ?',
+ 254:       whereArgs: [normalizedCultivoId, userId],
+ 255:       limit: 1,
+ 256:     );
+ 257: 
+ 258:     if (rows.isNotEmpty) {
+ 259:       return rows.first['id'] as String;
+ 260:     }
+ 261: 
+ 262:     return null;
+ 263:   }
+ 264: 
+ 265:   Future<void> _deleteImageIfExists(String? imagePath) async {
+ 266:     if (imagePath == null || imagePath.trim().isEmpty) return;
+ 267: 
+ 268:     try {
+ 269:       final file = File(imagePath);
+ 270:       if (await file.exists()) {
+ 271:         await file.delete();
+ 272:       }
+ 273:     } catch (error) {
+ 274:       // No detenemos la eliminaciÃ³n del registro si falla el borrado del archivo.
+ 275:       developer.log(
+ 276:         'No se pudo eliminar la imagen local.',
+ 277:         name: 'DetectionService',
+ 278:         error: error,
+ 279:       );
+ 280:     }
+ 281:   }
+ 282: 
+ 283:   Future<List<Map<String, dynamic>>> getPendingSyncDetections({
+ 284:     required String userId,
+ 285:     int limit = 20,
+ 286:   }) async {
+ 287:     final db = await LocalDB.instance.database;
+ 288:     final normalizedUserId = userId.trim();
+ 289: 
+ 290:     if (normalizedUserId.isEmpty) {
+ 291:       return [];
+ 292:     }
+ 293: 
+ 294:     return db.rawQuery('''
+ 295:     SELECT
+ 296:       detecciones.id,
+ 297:       detecciones.cultivo_id,
+ 298:       detecciones.plaga_id,
+ 299:       detecciones.confianza,
+ 300:       detecciones.fecha_hora,
+ 301:       detecciones.latitud,
+ 302:       detecciones.longitud,
+ 303:       detecciones.ubicacion_origen,
+ 304:       detecciones.box_left,
+ 305:       detecciones.box_top,
+ 306:       detecciones.box_right,
+ 307:       detecciones.box_bottom,
+ 308:       detecciones.ruta_imagen,
+ 309:       detecciones.dispositivo_id,
+ 310:       detecciones.sincronizado,
+ 311:       detecciones.cloud_id,
+ 312:       detecciones.sync_status,
+ 313:       detecciones.last_sync_at,
+ 314:       detecciones.sync_error,
+ 315:       detecciones.retry_count,
+ 316:       cultivos.nombre_parcela,
+ 317:       cultivos.coordenadas_sector,
+ 318:       plagas.nombre_comun,
+ 319:       plagas.nombre_cientifico
+ 320:     FROM detecciones
+ 321:     INNER JOIN cultivos ON detecciones.cultivo_id = cultivos.id
+ 322:     INNER JOIN plagas ON detecciones.plaga_id = plagas.id
+ 323:     WHERE cultivos.usuario_id = ?
+ 324:       AND detecciones.sincronizado = 0
+ 325:       AND detecciones.sync_status IN ('pendiente', 'error')
+ 326:     ORDER BY detecciones.fecha_hora ASC
+ 327:     LIMIT ?
+ 328:   ''', [normalizedUserId, limit]);
+ 329:   }
+ 330: 
+ 331:   Future<bool> markDetectionAsSyncing({
+ 332:     required String detectionId,
+ 333:   }) async {
+ 334:     final db = await LocalDB.instance.database;
+ 335:     final normalizedDetectionId = detectionId.trim();
+ 336: 
+ 337:     if (normalizedDetectionId.isEmpty) {
+ 338:       return false;
+ 339:     }
+ 340: 
+ 341:     final rowsAffected = await db.update(
+ 342:       'detecciones',
+ 343:       {
+ 344:         'sync_status': 'sincronizando',
+ 345:         'sync_error': null,
+ 346:       },
+ 347:       where: 'id = ?',
+ 348:       whereArgs: [normalizedDetectionId],
+ 349:     );
+ 350: 
+ 351:     return rowsAffected > 0;
+ 352:   }
+ 353: 
+ 354:   Future<bool> markDetectionAsSynced({
+ 355:     required String detectionId,
+ 356:     required String cloudId,
+ 357:   }) async {
+ 358:     final db = await LocalDB.instance.database;
+ 359:     final normalizedDetectionId = detectionId.trim();
+ 360:     final normalizedCloudId = cloudId.trim();
+ 361: 
+ 362:     if (normalizedDetectionId.isEmpty || normalizedCloudId.isEmpty) {
+ 363:       return false;
+ 364:     }
+ 365: 
+ 366:     final rowsAffected = await db.update(
+ 367:       'detecciones',
+ 368:       {
+ 369:         'sincronizado': 1,
+ 370:         'cloud_id': normalizedCloudId,
+ 371:         'sync_status': 'sincronizado',
+ 372:         'last_sync_at': DateTime.now().toIso8601String(),
+ 373:         'sync_error': null,
+ 374:       },
+ 375:       where: 'id = ?',
+ 376:       whereArgs: [normalizedDetectionId],
+ 377:     );
+ 378: 
+ 379:     return rowsAffected > 0;
+ 380:   }
+ 381: 
+ 382:   Future<bool> markDetectionSyncError({
+ 383:     required String detectionId,
+ 384:     required String errorMessage,
+ 385:   }) async {
+ 386:     final db = await LocalDB.instance.database;
+ 387:     final normalizedDetectionId = detectionId.trim();
+ 388: 
+ 389:     if (normalizedDetectionId.isEmpty) {
+ 390:       return false;
+ 391:     }
+ 392: 
+ 393:     final rowsAffected = await db.rawUpdate('''
+ 394:     UPDATE detecciones
+ 395:     SET
+ 396:       sync_status = ?,
+ 397:       sync_error = ?,
+ 398:       retry_count = COALESCE(retry_count, 0) + 1
+ 399:     WHERE id = ?
+ 400:   ''', [
+ 401:       'error',
+ 402:       errorMessage,
+ 403:       normalizedDetectionId,
+ 404:     ]);
+ 405: 
+ 406:     return rowsAffected > 0;
+ 407:   }
+ 408: 
+ 409:   Future<String> _getDeviceName() async {
+ 410:     try {
+ 411:       final deviceInfo = DeviceInfoPlugin();
+ 412: 
+ 413:       if (Platform.isAndroid) {
+ 414:         final androidInfo = await deviceInfo.androidInfo;
+ 415:         final manufacturer = androidInfo.manufacturer;
+ 416:         final model = androidInfo.model;
+ 417: 
+ 418:         return '$manufacturer $model';
+ 419:       }
+ 420: 
+ 421:       if (Platform.isIOS) {
+ 422:         final iosInfo = await deviceInfo.iosInfo;
+ 423:         return iosInfo.utsname.machine;
+ 424:       }
+ 425: 
+ 426:       return Platform.operatingSystem;
+ 427:     } catch (_) {
+ 428:       return 'Dispositivo mÃ³vil';
+ 429:     }
+ 430:   }
+ 431: }

@@ -1,0 +1,39 @@
+REPORTE PREDICCIONES YOLO TEST
+BASE: /content/drive/MyDrive/ARROZ_MODELO_V5
+Modelo YOLO: /content/drive/MyDrive/ARROZ_MODELO_V5/06_RUNS/detector_yolo_plagas_v1/weights/best.pt
+Test images: /content/drive/MyDrive/ARROZ_MODELO_V5/05_DATASET_DETECTOR/images/test
+Test labels: /content/drive/MyDrive/ARROZ_MODELO_V5/05_DATASET_DETECTOR/labels/test
+Salida: /content/drive/MyDrive/ARROZ_MODELO_V5/08_REPORTES/predicciones_yolo_test
+conf: 0.25
+imgsz: 640
+Uso fallback aleatorio: NO
+
+RESUMEN
+Total imagenes probadas: 40
+Total con detecciones: 30
+Total sin detecciones: 10
+Imagenes de prediccion generadas: 40
+
+MUESTRA POR GRUPO DISPONIBLE
+- ANUBLO: 60
+- HOJA_BLANCA: 60
+- SOGATA: 30
+- ARROZ_SANO_NEG: 100
+
+DETECCIONES POR CLASE
+- 0 ANUBLO: 149
+- 1 HOJA_BLANCA: 103
+- 2 SOGATA: 110
+
+ARROZ SANO NEGATIVO
+Si no detecta nada, esta correcto.
+Si detecta plaga, se marca como posible falso positivo.
+Posibles falsos positivos: 0
+
+ERRORES CRITICOS: 0
+- Sin errores criticos
+
+ADVERTENCIAS: 0
+- Sin advertencias
+
+ESTADO FINAL: LISTO
