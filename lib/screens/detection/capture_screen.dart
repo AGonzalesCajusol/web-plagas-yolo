@@ -327,7 +327,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
       _showLoadingDialog();
       loadingDialogShown = true;
 
-      // Permite que Flutter pinte el diálogo antes de iniciar la inferencia.
+      
       await Future<void>.delayed(const Duration(milliseconds: 200));
 
       if (!mounted) return;

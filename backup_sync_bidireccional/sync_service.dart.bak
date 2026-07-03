@@ -10,19 +10,11 @@ class SyncSummary {
     required this.total,
     required this.synced,
     required this.failed,
-    this.remoteTotal = 0,
-    this.downloaded = 0,
   });
 
   final int total;
   final int synced;
   final int failed;
-
-
-  final int remoteTotal;
-
-
-  final int downloaded;
 }
 
 class ImageUploadData {
@@ -53,7 +45,7 @@ class SyncService {
     final userId = user['id']?.toString().trim() ?? '';
 
     final userName = user['nombre']?.toString().trim() ?? '';
-    final userEmail = user['email']?.toString().trim().toLowerCase() ?? '';
+    final userEmail = user['email']?.toString().trim() ?? '';
     final userPhone = user['telefono']?.toString().trim() ?? '';
     final userRole = user['rol']?.toString().trim() ?? 'AGRICULTOR';
 
@@ -73,7 +65,6 @@ class SyncService {
     var synced = 0;
     var failed = 0;
 
-    
     for (final detection in detections) {
       final detectionId = detection['id']?.toString() ?? '';
 
@@ -88,7 +79,6 @@ class SyncService {
 
       try {
         final imageKey = await _uploadDetectionImageIfAvailable(detection);
-
         final response = await http.post(
           Uri.parse('$_baseUrl/sync/detecciones'),
           headers: const {
@@ -154,75 +144,11 @@ class SyncService {
       }
     }
 
-
-    var remoteTotal = 0;
-    var downloaded = 0;
-
-    if (userEmail.isNotEmpty) {
-      try {
-        final remoteDetections = await _downloadRemoteDetections(
-          usuarioEmail: userEmail,
-        );
-
-        remoteTotal = remoteDetections.length;
-
-        downloaded = await DetectionService.instance.insertRemoteDetections(
-          userId: userId,
-          remoteDetections: remoteDetections,
-        );
-      } catch (_) {
-        
-      }
-    }
-
-    await DetectionService.instance.normalizeExistingPestNames();
-
     return SyncSummary(
       total: detections.length,
       synced: synced,
       failed: failed,
-      remoteTotal: remoteTotal,
-      downloaded: downloaded,
     );
-  }
-
-  Future<List<Map<String, dynamic>>> _downloadRemoteDetections({
-    required String usuarioEmail,
-  }) async {
-    final uri = Uri.parse('$_baseUrl/sync/detecciones').replace(
-      queryParameters: {
-        'usuario_email': usuarioEmail,
-      },
-    );
-
-    final response = await http.get(
-      uri,
-      headers: const {
-        'x-api-key': _apiKey,
-      },
-    );
-
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-
-    if (response.statusCode >= 200 &&
-        response.statusCode < 300 &&
-        body['ok'] == true) {
-      final detections = body['detections'];
-
-      if (detections is List) {
-        return detections
-            .whereType<Map>()
-            .map((item) => item.cast<String, dynamic>())
-            .toList();
-      }
-
-      return [];
-    }
-
-    final message = body['message']?.toString() ??
-        'Error HTTP ${response.statusCode} descargando detecciones';
-
-    throw Exception(message);
   }
 
   Future<String?> _uploadDetectionImageIfAvailable(
@@ -246,9 +172,7 @@ class SyncService {
       detectionId: detectionId,
       contentType: contentType,
     );
-
     final bytes = await imageFile.readAsBytes();
-
     final uploadResponse = await http.put(
       Uri.parse(uploadData.uploadUrl),
       headers: {
@@ -300,7 +224,6 @@ class SyncService {
 
     final message = body['message']?.toString() ??
         'Error HTTP ${response.statusCode} solicitando URL de imagen';
-
     throw Exception('Error al subir imagen a S3: $message');
   }
 

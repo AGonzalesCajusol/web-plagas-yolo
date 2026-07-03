@@ -60,9 +60,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         SnackBar(
           content: Text(
             'Sincronización finalizada. '
-            'Total: ${result.total}, '
-            'correctas: ${result.synced}, '
-            'errores: ${result.failed}.',
+            'Subidas: ${result.synced}/${result.total}. '
+            'Descargadas nuevas: ${result.downloaded}. '
+            'Encontradas en nube: ${result.remoteTotal}. '
+            'Errores: ${result.failed}.',
           ),
         ),
       );
