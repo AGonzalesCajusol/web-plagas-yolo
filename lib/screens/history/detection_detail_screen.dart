@@ -102,10 +102,409 @@ class DetectionDetailScreen extends StatelessWidget {
     return '$day/$month/$year $hour:$minute:$second';
   }
 
+  Widget _buildStatusChip({
+    required BuildContext context,
+    required String commonName,
+    required double confidence,
+  }) {
+    const darkGreen = Color(0xFF1B5E20);
+    const warningBackground = Color(0xFFFFF8E1);
+    const riskBackground = Color(0xFFFFEBEE);
+
+    final normalized = commonName.toLowerCase();
+    final isHealthy = normalized.contains('sano') ||
+        normalized.contains('saludable') ||
+        normalized.contains('sin plaga');
+    final isLowConfidence = confidence > 0 && confidence < 0.55;
+    final isUnknown = normalized.contains('sin nombre') ||
+        normalized.contains('sin dete') ||
+        normalized.contains('no detect');
+
+    final label = isHealthy
+        ? 'Arroz sano'
+        : isLowConfidence
+            ? 'Baja confianza'
+            : isUnknown
+                ? 'Sin detección'
+                : 'Plaga detectada';
+    final backgroundColor = isHealthy
+        ? const Color(0xFFE8F5E9)
+        : isLowConfidence
+            ? warningBackground
+            : isUnknown
+                ? const Color(0xFFF3F4F6)
+                : riskBackground;
+    final foregroundColor = isHealthy
+        ? darkGreen
+        : isLowConfidence
+            ? const Color(0xFF8A5A00)
+            : isUnknown
+                ? const Color(0xFF4B5563)
+                : const Color(0xFFC62828);
+    final icon = isHealthy
+        ? Icons.eco_outlined
+        : isLowConfidence
+            ? Icons.info_outline
+            : isUnknown
+                ? Icons.search_off_outlined
+                : Icons.bug_report_outlined;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: foregroundColor.withOpacity(0.10),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 15,
+            color: foregroundColor,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImagePreview({
+    required BuildContext context,
+    required String imagePath,
+    required File imageFile,
+    required double? boxLeft,
+    required double? boxTop,
+    required double? boxRight,
+    required double? boxBottom,
+    required String commonName,
+    required double confidence,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const textSecondary = Color(0xFF6B7280);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: primaryGreen.withOpacity(0.08),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: darkGreen.withOpacity(0.08),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          height: 320,
+          width: double.infinity,
+          child: imagePath.isNotEmpty && imageFile.existsSync()
+              ? FutureBuilder<Size?>(
+                  future: _readImageSize(imageFile),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const ColoredBox(
+                        color: Color(0xFFE8F5E9),
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        ),
+                      );
+                    }
+
+                    final imageSize = snapshot.data;
+                    if (imageSize == null) {
+                      return const _ImagePlaceholder();
+                    }
+
+                    return ColoredBox(
+                      color: const Color(0xFFF6FAF6),
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.contain,
+                          child: SizedBox(
+                            width: imageSize.width,
+                            height: imageSize.height,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Image.file(
+                                  imageFile,
+                                  fit: BoxFit.fill,
+                                ),
+                                Positioned.fill(
+                                  child: CustomPaint(
+                                    painter: BoundingBoxPainter(
+                                      left: boxLeft,
+                                      top: boxTop,
+                                      right: boxRight,
+                                      bottom: boxBottom,
+                                      pestName: commonName,
+                                      confidence: confidence,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                )
+              : Container(
+                  color: const Color(0xFFE8F5E9),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.image_outlined,
+                          size: 56,
+                          color: primaryGreen,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Imagen no disponible',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: textSecondary,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultCard({
+    required BuildContext context,
+    required String commonName,
+    required String scientificName,
+    required double confidence,
+    required int confidencePercent,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: primaryGreen.withOpacity(0.08),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: darkGreen.withOpacity(0.07),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(17),
+                ),
+                child: const Icon(
+                  Icons.analytics_outlined,
+                  color: primaryGreen,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Resultado',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: textSecondary,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      commonName,
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                color: textPrimary,
+                                fontWeight: FontWeight.w900,
+                                height: 1.12,
+                                letterSpacing: 0,
+                              ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            scientificName,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: textSecondary,
+                  fontStyle: FontStyle.italic,
+                  height: 1.35,
+                  letterSpacing: 0,
+                ),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _buildStatusChip(
+                context: context,
+                commonName: commonName,
+                confidence: confidence,
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'Confianza $confidencePercent%',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: darkGreen,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: confidence.clamp(0.0, 1.0).toDouble(),
+              minHeight: 8,
+              backgroundColor: const Color(0xFFE8F5E9),
+              valueColor: const AlwaysStoppedAnimation<Color>(primaryGreen),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({
+    required BuildContext context,
+    required String date,
+    required String parcelName,
+    required String locationText,
+    required String locationOriginText,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const textPrimary = Color(0xFF1F2933);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: primaryGreen.withOpacity(0.08),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: darkGreen.withOpacity(0.07),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Información de la detección',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: textPrimary,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+          ),
+          const SizedBox(height: 16),
+          _DetailRow(
+            icon: Icons.calendar_today_outlined,
+            label: 'Fecha exacta',
+            value: date,
+          ),
+          const SizedBox(height: 14),
+          _DetailRow(
+            icon: Icons.landscape_outlined,
+            label: 'Parcela',
+            value: parcelName,
+          ),
+          const SizedBox(height: 14),
+          _DetailRow(
+            icon: Icons.location_on_outlined,
+            label: 'Ubicación',
+            value: locationText,
+          ),
+          const SizedBox(height: 14),
+          _DetailRow(
+            icon: Icons.my_location_outlined,
+            label: 'Origen de ubicación',
+            value: locationOriginText,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    const darkGreen = Color(0xFF1B5E20);
+    const lightGreen = Color(0xFFE8F5E9);
+    const backgroundColor = Color(0xFFF6FAF6);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+
     final imagePath = _stringValue('ruta_imagen', fallback: '');
     final imageFile = File(imagePath);
     final commonName = _stringValue('nombre_comun');
@@ -128,147 +527,169 @@ class DetectionDetailScreen extends StatelessWidget {
     final boxBottom = _nullableDoubleValue('box_bottom');
 
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text('Detalle de Detección'),
+        title: const Text('Detalle de detección'),
         centerTitle: true,
+        backgroundColor: lightGreen,
+        elevation: 0,
+        foregroundColor: darkGreen,
       ),
-      body: Column(
-        children: [
-          Expanded(
-            flex: 5,
-            child: Container(
-              width: double.infinity,
-              color: colorScheme.surfaceContainerHighest,
-              child: imagePath.isNotEmpty && imageFile.existsSync()
-                  ? FutureBuilder<Size?>(
-                      future: _readImageSize(imageFile),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-
-                        final imageSize = snapshot.data;
-                        if (imageSize == null) {
-                          return Center(
-                            child: Icon(
-                              Icons.image_not_supported_outlined,
-                              size: 64,
-                              color: colorScheme.onSurfaceVariant,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              lightGreen,
+              backgroundColor,
+              Colors.white,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.88),
+                        borderRadius: BorderRadius.circular(26),
+                        border: Border.all(
+                          color: darkGreen.withOpacity(0.08),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: darkGreen.withOpacity(0.08),
+                            blurRadius: 28,
+                            offset: const Offset(0, 14),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 58,
+                            height: 58,
+                            decoration: BoxDecoration(
+                              color: lightGreen,
+                              borderRadius: BorderRadius.circular(19),
                             ),
-                          );
-                        }
-
-                        return Center(
-                          child: FittedBox(
-                            fit: BoxFit.contain,
-                            child: SizedBox(
-                              width: imageSize.width,
-                              height: imageSize.height,
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  Image.file(
-                                    imageFile,
-                                    fit: BoxFit.fill,
-                                  ),
-                                  Positioned.fill(
-                                    child: CustomPaint(
-                                      painter: BoundingBoxPainter(
-                                        left: boxLeft,
-                                        top: boxTop,
-                                        right: boxRight,
-                                        bottom: boxBottom,
-                                        pestName: commonName,
-                                        confidence: confidence,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            child: const Icon(
+                              Icons.eco_outlined,
+                              color: darkGreen,
+                              size: 30,
                             ),
                           ),
-                        );
-                      },
-                    )
-                  : Center(
-                      child: Icon(
-                        Icons.image_not_supported_outlined,
-                        size: 64,
-                        color: colorScheme.onSurfaceVariant,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Detalle de detección',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(
+                                        color: textPrimary,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0,
+                                      ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Información completa del análisis',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: textSecondary,
+                                        height: 1.35,
+                                        letterSpacing: 0,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-            ),
-          ),
-          Expanded(
-            flex: 4,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Card(
-                elevation: 1,
-                color: colorScheme.surfaceContainerLow,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        commonName,
-                        style: textTheme.headlineSmall?.copyWith(
-                          color: colorScheme.onSurface,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        scientificName,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      _DetailRow(
-                        icon: Icons.schedule_outlined,
-                        label: 'Fecha exacta',
-                        value: date,
-                      ),
-                      const SizedBox(height: 14),
-                      _DetailRow(
-                        icon: Icons.landscape_outlined,
-                        label: 'Parcela',
-                        value: parcelName,
-                      ),
-                      const SizedBox(height: 14),
-                      _DetailRow(
-                        icon: Icons.analytics_outlined,
-                        label: 'Confianza',
-                        value: '$confidencePercent%',
-                      ),
-                      const SizedBox(height: 14),
-                      _DetailRow(
-                        icon: Icons.location_on_outlined,
-                        label: 'Ubicación',
-                        value: locationText,
-                      ),
-                      const SizedBox(height: 14),
-                      _DetailRow(
-                        icon: Icons.my_location_outlined,
-                        label: 'Origen de ubicación',
-                        value: locationOriginText,
-                      ),
-                    ],
-                  ),
+                    const SizedBox(height: 18),
+                    _buildImagePreview(
+                      context: context,
+                      imagePath: imagePath,
+                      imageFile: imageFile,
+                      boxLeft: boxLeft,
+                      boxTop: boxTop,
+                      boxRight: boxRight,
+                      boxBottom: boxBottom,
+                      commonName: commonName,
+                      confidence: confidence,
+                    ),
+                    const SizedBox(height: 18),
+                    _buildResultCard(
+                      context: context,
+                      commonName: commonName,
+                      scientificName: scientificName,
+                      confidence: confidence,
+                      confidencePercent: confidencePercent,
+                    ),
+                    const SizedBox(height: 18),
+                    _buildInfoCard(
+                      context: context,
+                      date: date,
+                      parcelName: parcelName,
+                      locationText: locationText,
+                      locationOriginText: locationOriginText,
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ImagePlaceholder extends StatelessWidget {
+  const _ImagePlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const textSecondary = Color(0xFF6B7280);
+
+    return Container(
+      color: const Color(0xFFE8F5E9),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.image_not_supported_outlined,
+              size: 56,
+              color: primaryGreen,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'No se pudo cargar la imagen',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: textSecondary,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -287,23 +708,24 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    const primaryGreen = Color(0xFF2E7D32);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 36,
-          height: 36,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
-            color: colorScheme.primaryContainer,
-            shape: BoxShape.circle,
+            color: const Color(0xFFE8F5E9),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(
             icon,
-            size: 19,
-            color: colorScheme.onPrimaryContainer,
+            size: 20,
+            color: primaryGreen,
           ),
         ),
         const SizedBox(width: 12),
@@ -313,17 +735,21 @@ class _DetailRow extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: textTheme.labelLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: textSecondary,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Text(
                 value,
-                style: textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: textPrimary,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                      letterSpacing: 0,
+                    ),
               ),
             ],
           ),
@@ -366,7 +792,7 @@ class BoundingBoxPainter extends CustomPainter {
     if (scaledBox.isEmpty) return;
 
     final strokePaint = Paint()
-      ..color = Colors.green
+      ..color = const Color(0xFF2E7D32)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0;
 
@@ -401,7 +827,7 @@ class BoundingBoxPainter extends CustomPainter {
       labelHeight,
     );
 
-    canvas.drawRect(labelRect, Paint()..color = Colors.green);
+    canvas.drawRect(labelRect, Paint()..color = const Color(0xFF2E7D32));
     textPainter.paint(
       canvas,
       Offset(

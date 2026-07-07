@@ -30,6 +30,9 @@ class _CropsScreenState extends State<CropsScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Text('Eliminar parcela'),
           content: Text('Se eliminará la parcela "$nombre".'),
           actions: [
@@ -96,58 +99,127 @@ class _CropsScreenState extends State<CropsScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Nueva Parcela'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
+              title: Row(
                 children: [
-                  TextField(
-                    controller: nombreController,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'Nombre de la Parcela',
-                      prefixIcon: Icon(Icons.landscape_outlined),
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.add_location_alt_outlined,
+                      color: Color(0xFF2E7D32),
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  Text(
-                    coordenadasCapturadas ?? 'Ubicación no capturada',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: isGettingLocation
-                        ? null
-                        : () async {
-                            setDialogState(() {
-                              isGettingLocation = true;
-                              coordenadasCapturadas = 'Buscando señal GPS...';
-                            });
-
-                            final locationText =
-                                await _getCurrentLocationText();
-
-                            if (context.mounted) {
-                              setDialogState(() {
-                                coordenadasCapturadas = locationText;
-                                isGettingLocation = false;
-                              });
-                            }
-                          },
-                    icon: isGettingLocation
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.gps_fixed_outlined),
-                    label: Text(
-                      isGettingLocation
-                          ? 'Obteniendo ubicación...'
-                          : 'Obtener ubicación actual',
-                    ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text('Nueva parcela'),
                   ),
                 ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: nombreController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: _fieldDecoration(
+                        context: context,
+                        labelText: 'Nombre de la parcela',
+                        icon: Icons.landscape_outlined,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF6FAF6),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF2E7D32).withOpacity(0.10),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.location_on_outlined,
+                            size: 20,
+                            color: Color(0xFF2E7D32),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              coordenadasCapturadas ?? 'Ubicación no capturada',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: const Color(0xFF6B7280),
+                                    height: 1.35,
+                                    letterSpacing: 0,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: isGettingLocation
+                          ? null
+                          : () async {
+                              setDialogState(() {
+                                isGettingLocation = true;
+                                coordenadasCapturadas = 'Buscando señal GPS...';
+                              });
+
+                              final locationText =
+                                  await _getCurrentLocationText();
+
+                              if (context.mounted) {
+                                setDialogState(() {
+                                  coordenadasCapturadas = locationText;
+                                  isGettingLocation = false;
+                                });
+                              }
+                            },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF2E7D32),
+                        side: BorderSide(
+                          color: const Color(0xFF2E7D32).withOpacity(0.35),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 13,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                      ),
+                      icon: isGettingLocation
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.gps_fixed_outlined),
+                      label: Text(
+                        isGettingLocation
+                            ? 'Obteniendo ubicación...'
+                            : 'Obtener ubicación actual',
+                      ),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -270,6 +342,9 @@ class _CropsScreenState extends State<CropsScreen> {
       barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Text('No se pudo obtener la ubicación automáticamente'),
           content: const Text(
             'Puedes registrar una ubicación manualmente o continuar sin coordenadas.',
@@ -321,6 +396,9 @@ class _CropsScreenState extends State<CropsScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               title: const Text('Ingresar coordenadas'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -331,7 +409,11 @@ class _CropsScreenState extends State<CropsScreen> {
                       decimal: true,
                       signed: true,
                     ),
-                    decoration: const InputDecoration(labelText: 'Latitud'),
+                    decoration: _fieldDecoration(
+                      context: context,
+                      labelText: 'Latitud',
+                      icon: Icons.explore_outlined,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -340,7 +422,11 @@ class _CropsScreenState extends State<CropsScreen> {
                       decimal: true,
                       signed: true,
                     ),
-                    decoration: const InputDecoration(labelText: 'Longitud'),
+                    decoration: _fieldDecoration(
+                      context: context,
+                      labelText: 'Longitud',
+                      icon: Icons.explore_outlined,
+                    ),
                   ),
                   if (errorText != null) ...[
                     const SizedBox(height: 10),
@@ -411,6 +497,410 @@ class _CropsScreenState extends State<CropsScreen> {
         longitude <= 180;
   }
 
+  InputDecoration _fieldDecoration({
+    required BuildContext context,
+    required String labelText,
+    required IconData icon,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+
+    return InputDecoration(
+      labelText: labelText,
+      prefixIcon: Icon(icon),
+      filled: true,
+      fillColor: const Color(0xFFF8FBF8),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(
+          color: primaryGreen.withOpacity(0.12),
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(
+          color: primaryGreen,
+          width: 1.4,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(
+          color: Theme.of(context).colorScheme.error,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader({
+    required BuildContext context,
+    required int total,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.88),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(
+            color: primaryGreen.withOpacity(0.08),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: darkGreen.withOpacity(0.08),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(19),
+              ),
+              child: const Icon(
+                Icons.agriculture_outlined,
+                color: primaryGreen,
+                size: 30,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Mis parcelas',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: textPrimary,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Administra tus zonas de monitoreo',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: textSecondary,
+                          height: 1.35,
+                          letterSpacing: 0,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                total == 1 ? '1 parcela' : '$total parcelas',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: darkGreen,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStateCard({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    bool showProgress = false,
+    bool showAddButton = false,
+    Color? iconColor,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 430),
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: primaryGreen.withOpacity(0.08),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: darkGreen.withOpacity(0.08),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Icon(
+                  icon,
+                  size: 34,
+                  color: iconColor ?? primaryGreen,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: textPrimary,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: textSecondary,
+                      height: 1.4,
+                      letterSpacing: 0,
+                    ),
+              ),
+              if (showProgress) ...[
+                const SizedBox(height: 20),
+                const SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: CircularProgressIndicator(strokeWidth: 3),
+                ),
+              ],
+              if (showAddButton) ...[
+                const SizedBox(height: 22),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    await _showAddCropDialog();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: darkGreen,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Agregar parcela'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCropCard({
+    required BuildContext context,
+    required Map<String, dynamic> cultivo,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+
+    final cultivoId = cultivo['id']?.toString() ?? '';
+    final nombre = cultivo['nombre_parcela']?.toString() ?? 'Sin nombre';
+    final coordenadas =
+        cultivo['coordenadas_sector']?.toString() ?? 'Sin ubicación';
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: primaryGreen.withOpacity(0.08),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: darkGreen.withOpacity(0.07),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.grass_outlined,
+              color: primaryGreen,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        nombre,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: textPrimary,
+                              fontWeight: FontWeight.w900,
+                              height: 1.18,
+                              letterSpacing: 0,
+                            ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'Activa',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: darkGreen,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 17,
+                      color: textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        coordenadas,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: textSecondary,
+                              height: 1.35,
+                              letterSpacing: 0,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF6FAF6),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: primaryGreen.withOpacity(0.08),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.map_outlined,
+                            size: 15,
+                            color: primaryGreen,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Zona de monitoreo',
+                            style:
+                                Theme.of(context).textTheme.labelSmall?.copyWith(
+                                      color: primaryGreen,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0,
+                                    ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      tooltip: 'Eliminar parcela',
+                      icon: const Icon(Icons.delete_outline),
+                      color: Theme.of(context).colorScheme.error,
+                      onPressed: cultivoId.isEmpty
+                          ? null
+                          : () => _confirmDeleteCrop(
+                                cultivoId: cultivoId,
+                                nombre: nombre,
+                              ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     nombreController.dispose();
@@ -419,116 +909,135 @@ class _CropsScreenState extends State<CropsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    const darkGreen = Color(0xFF1B5E20);
+    const lightGreen = Color(0xFFE8F5E9);
+    const backgroundColor = Color(0xFFF6FAF6);
 
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text('Mis Parcelas'),
+        title: const Text('Mis parcelas'),
         centerTitle: true,
+        backgroundColor: lightGreen,
+        elevation: 0,
+        foregroundColor: darkGreen,
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           await _showAddCropDialog();
         },
-        child: const Icon(Icons.add_location_alt_outlined),
+        backgroundColor: darkGreen,
+        foregroundColor: Colors.white,
+        elevation: 3,
+        icon: const Icon(Icons.add),
+        label: const Text('Agregar'),
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: CropService.instance.getCultivos(userId: widget.userId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'No se pudieron cargar tus parcelas.',
-                  textAlign: TextAlign.center,
-                  style: textTheme.titleMedium?.copyWith(
-                    color: colorScheme.error,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            );
-          }
-
-          final cultivos = snapshot.data ?? [];
-          if (cultivos.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Text(
-                  'Aún no has registrado ninguna parcela. Toca el botón + para empezar.',
-                  textAlign: TextAlign.center,
-                  style: textTheme.titleMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: cultivos.length,
-            itemBuilder: (context, index) {
-              final cultivo = cultivos[index];
-              final cultivoId = cultivo['id']?.toString() ?? '';
-              final nombre =
-                  cultivo['nombre_parcela']?.toString() ?? 'Sin nombre';
-              final coordenadas =
-                  cultivo['coordenadas_sector']?.toString() ?? 'Sin ubicación';
-
-              return Card(
-                elevation: 1,
-                color: colorScheme.surfaceContainerLow,
-                clipBehavior: Clip.antiAlias,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: colorScheme.primaryContainer,
-                    foregroundColor: colorScheme.onPrimaryContainer,
-                    child: const Icon(Icons.landscape),
-                  ),
-                  title: Text(
-                    nombre,
-                    style: textTheme.titleMedium?.copyWith(
-                      color: colorScheme.onSurface,
-                      fontWeight: FontWeight.bold,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              lightGreen,
+              backgroundColor,
+              Colors.white,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: CropService.instance.getCultivos(userId: widget.userId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Column(
+                  children: [
+                    _buildHeader(
+                      context: context,
+                      total: 0,
                     ),
-                  ),
-                  subtitle: Text(
-                    coordenadas,
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+                    Expanded(
+                      child: _buildStateCard(
+                        context: context,
+                        icon: Icons.agriculture_outlined,
+                        title: 'Cargando parcelas',
+                        subtitle:
+                            'Estamos preparando tus zonas de monitoreo.',
+                        showProgress: true,
+                      ),
                     ),
-                  ),
-                  trailing: IconButton(
-                    tooltip: 'Eliminar parcela',
-                    icon: const Icon(Icons.delete_outline),
-                    color: colorScheme.error,
-                    onPressed: cultivoId.isEmpty
-                        ? null
-                        : () => _confirmDeleteCrop(
-                              cultivoId: cultivoId,
-                              nombre: nombre,
-                            ),
-                  ),
+                  ],
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Column(
+                  children: [
+                    _buildHeader(
+                      context: context,
+                      total: 0,
+                    ),
+                    Expanded(
+                      child: _buildStateCard(
+                        context: context,
+                        icon: Icons.error_outline,
+                        title: 'No se pudieron cargar tus parcelas',
+                        subtitle:
+                            'Intenta volver a abrir esta pantalla en unos momentos.',
+                        iconColor: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              final cultivos = snapshot.data ?? [];
+              if (cultivos.isEmpty) {
+                return Column(
+                  children: [
+                    _buildHeader(
+                      context: context,
+                      total: 0,
+                    ),
+                    Expanded(
+                      child: _buildStateCard(
+                        context: context,
+                        icon: Icons.eco_outlined,
+                        title: 'Aún no tienes cultivos registrados',
+                        subtitle:
+                            'Agrega una parcela para empezar a organizar tus detecciones.',
+                        showAddButton: true,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return ListView.builder(
+                padding: EdgeInsets.only(
+                  bottom: 96 + MediaQuery.of(context).padding.bottom,
                 ),
+                itemCount: cultivos.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return _buildHeader(
+                      context: context,
+                      total: cultivos.length,
+                    );
+                  }
+
+                  final cultivo = cultivos[index - 1];
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                    child: _buildCropCard(
+                      context: context,
+                      cultivo: cultivo,
+                    ),
+                  );
+                },
               );
             },
-          );
-        },
+          ),
+        ),
       ),
     );
   }

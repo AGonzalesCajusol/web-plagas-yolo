@@ -130,6 +130,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
       builder: (dialogContext) {
         return SimpleDialog(
           title: const Text('Seleccionar parcela'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           children: [
             for (final parcela in _parcelas)
               ListTile(
@@ -327,7 +330,6 @@ class _CaptureScreenState extends State<CaptureScreen> {
       _showLoadingDialog();
       loadingDialogShown = true;
 
-      
       await Future<void>.delayed(const Duration(milliseconds: 200));
 
       if (!mounted) return;
@@ -458,6 +460,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Text('Imagen no válida'),
           content: const Text('No corresponde a cultivo de arroz'),
           actions: [
@@ -478,6 +483,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Text('Imagen dudosa'),
           content: const Text(
             'No se pudo confirmar que la imagen sea arroz. Tome otra foto con mejor enfoque.',
@@ -503,6 +511,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: Text(title),
           content: Text(message),
           actions: [
@@ -517,30 +528,27 @@ class _CaptureScreenState extends State<CaptureScreen> {
   }
 
   void _showLoadingDialog() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: colorScheme.surface,
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(22),
           ),
-          content: Row(
+          content: const Row(
             children: [
               CircularProgressIndicator(
-                color: colorScheme.primary,
+                color: Color(0xFF2E7D32),
               ),
-              const SizedBox(width: 20),
+              SizedBox(width: 20),
               Expanded(
                 child: Text(
                   'Procesando predicción...\nEsto puede tardar unos segundos.',
-                  style: textTheme.titleMedium?.copyWith(
-                    color: colorScheme.onSurface,
-                    fontWeight: FontWeight.w600,
+                  style: TextStyle(
+                    color: Color(0xFF1F2933),
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -552,7 +560,13 @@ class _CaptureScreenState extends State<CaptureScreen> {
   }
 
   void _showResultBottomSheet(Map<String, dynamic> resultado) {
-    final colorScheme = Theme.of(context).colorScheme;
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const lightGreen = Color(0xFFE8F5E9);
+    const backgroundColor = Color(0xFFF6FAF6);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+
     final textTheme = Theme.of(context).textTheme;
     final plaga = resultado['plaga']?.toString() ?? 'Resultado desconocido';
     final mensajeResultado =
@@ -564,10 +578,11 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: colorScheme.surface,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (context) {
         return StatefulBuilder(
@@ -578,89 +593,162 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 _selectedParcelaLocation() ?? _LocationData.unavailable();
 
             return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  22,
+                  4,
+                  22,
+                  24 + MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: backgroundColor,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: primaryGreen.withOpacity(0.08),
+                        ),
+                      ),
+                      child: Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(12),
+                            width: 52,
+                            height: 52,
                             decoration: BoxDecoration(
-                              color: colorScheme.primaryContainer,
-                              shape: BoxShape.circle,
+                              color: lightGreen,
+                              borderRadius: BorderRadius.circular(17),
                             ),
-                            child: Icon(
+                            child: const Icon(
                               Icons.eco_outlined,
-                              color: colorScheme.onPrimaryContainer,
+                              color: primaryGreen,
+                              size: 28,
                             ),
                           ),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 14),
                           Expanded(
-                            child: Text(
-                              'Resultado de detección',
-                              style: textTheme.titleLarge?.copyWith(
-                                color: colorScheme.onSurface,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Resultado de detección',
+                                  style: textTheme.titleLarge?.copyWith(
+                                    color: textPrimary,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Revisa el análisis antes de guardarlo',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: textSecondary,
+                                    height: 1.35,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Plaga detectada',
-                        style: textTheme.labelLarge?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: primaryGreen.withOpacity(0.08),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        mensajeResultado,
-                        style: textTheme.headlineSmall?.copyWith(
-                          color: colorScheme.onSurface,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Confianza',
-                        style: textTheme.labelLarge?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: LinearProgressIndicator(
-                              value: confianzaValor.clamp(0.0, 1.0).toDouble(),
-                              minHeight: 10,
-                              borderRadius: BorderRadius.circular(999),
-                              color: colorScheme.primary,
-                              backgroundColor:
-                                  colorScheme.surfaceContainerHighest,
-                            ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: darkGreen.withOpacity(0.07),
+                            blurRadius: 24,
+                            offset: const Offset(0, 12),
                           ),
-                          const SizedBox(width: 16),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            '$confianzaPorcentaje%',
-                            style: textTheme.titleMedium?.copyWith(
-                              color: colorScheme.primary,
-                              fontWeight: FontWeight.bold,
+                            'Plaga detectada',
+                            style: textTheme.labelLarge?.copyWith(
+                              color: textSecondary,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0,
                             ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            mensajeResultado,
+                            style: textTheme.headlineSmall?.copyWith(
+                              color: textPrimary,
+                              fontWeight: FontWeight.w900,
+                              height: 1.12,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: LinearProgressIndicator(
+                                    value: confianzaValor
+                                        .clamp(0.0, 1.0)
+                                        .toDouble(),
+                                    minHeight: 9,
+                                    color: primaryGreen,
+                                    backgroundColor: lightGreen,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Text(
+                                '$confianzaPorcentaje%',
+                                style: textTheme.titleMedium?.copyWith(
+                                  color: primaryGreen,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      Row(
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: primaryGreen.withOpacity(0.08),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.location_on_outlined,
-                            color: colorScheme.primary,
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: lightGreen,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.location_on_outlined,
+                              color: primaryGreen,
+                              size: 22,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -669,168 +757,200 @@ class _CaptureScreenState extends State<CaptureScreen> {
                               '${_formatLocation(locationPreview.latitude, locationPreview.longitude)}\n'
                               '${_formatLocationOrigin(locationPreview.origin)}',
                               style: textTheme.bodyMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              hasParcelaSeleccionada
-                                  ? 'Parcela: $parcelaNombre'
-                                  : 'No tienes parcelas registradas',
-                              style: textTheme.bodyMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
+                                color: textSecondary,
+                                height: 1.35,
                                 fontWeight: FontWeight.w600,
+                                letterSpacing: 0,
                               ),
                             ),
                           ),
-                          if (hasParcelaSeleccionada)
-                            TextButton(
-                              onPressed: () =>
-                                  _changeParcelaForPendingDetection(
-                                () => setBottomSheetState(() {}),
-                              ),
-                              child: const Text('Cambiar'),
-                            ),
                         ],
                       ),
-                      if (!hasParcelaSeleccionada) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          'Debe seleccionar o registrar una parcela antes de guardar la detección.',
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.error,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: () async {
-                              await _openCropsScreenFromCapture();
-                              if (context.mounted) {
-                                setBottomSheetState(() {});
-                              }
-                            },
-                            icon: const Icon(Icons.add_location_alt_outlined),
-                            label: const Text('Agregar parcela'),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: StatefulBuilder(
-                          builder: (buttonContext, setButtonState) {
-                            return FilledButton(
-                              onPressed: isSaving || !hasParcelaSeleccionada
-                                  ? null
-                                  : () async {
-                                      final imageBytes = _selectedImageBytes;
-                                      if (imageBytes == null) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'No hay imagen para guardar.',
-                                            ),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                        return;
-                                      }
-
-                                      setButtonState(() {
-                                        isSaving = true;
-                                      });
-
-                                      final location =
-                                          await _resolveLocationForSave();
-
-                                      final success = await DetectionService()
-                                          .saveDetection(
-                                        userId: widget.userId,
-                                        plagaNombre: plaga,
-                                        confianza: confianzaValor,
-                                        latitud: location.latitude,
-                                        longitud: location.longitude,
-                                        ubicacionOrigen: location.origin,
-                                        imageBytes: imageBytes,
-                                        cultivoId: _parcelaSeleccionadaId,
-                                        boundingBox:
-                                            _lastDetection?['box'] is Rect
-                                                ? _lastDetection!['box'] as Rect
-                                                : null,
-                                      );
-
-                                      if (!mounted) return;
-
-                                      if (success) {
-                                        Navigator.pop(this.context);
-                                        ScaffoldMessenger.of(this.context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Detección guardada en el historial',
-                                            ),
-                                            backgroundColor: Colors.green,
-                                          ),
-                                        );
-                                      } else {
-                                        setButtonState(() {
-                                          isSaving = false;
-                                        });
-                                        ScaffoldMessenger.of(this.context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'No se pudo guardar la detección.',
-                                            ),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                      }
-                                    },
-                              child: isSaving
-                                  ? const Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text('Guardando...'),
-                                      ],
-                                    )
-                                  : const Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.save_outlined),
-                                        SizedBox(width: 8),
-                                        Text('Guardar en Historial'),
-                                      ],
-                                    ),
-                            );
-                          },
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: hasParcelaSeleccionada
+                            ? Colors.white
+                            : const Color(0xFFFFEBEE),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: hasParcelaSeleccionada
+                              ? primaryGreen.withOpacity(0.08)
+                              : const Color(0xFFC62828).withOpacity(0.14),
                         ),
                       ),
-                    ],
-                  ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  hasParcelaSeleccionada
+                                      ? 'Parcela: $parcelaNombre'
+                                      : 'No tienes parcelas registradas',
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: hasParcelaSeleccionada
+                                        ? textPrimary
+                                        : const Color(0xFFC62828),
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                              ),
+                              if (hasParcelaSeleccionada)
+                                TextButton(
+                                  onPressed: () =>
+                                      _changeParcelaForPendingDetection(
+                                    () => setBottomSheetState(() {}),
+                                  ),
+                                  child: const Text('Cambiar'),
+                                ),
+                            ],
+                          ),
+                          if (!hasParcelaSeleccionada) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Debe seleccionar o registrar una parcela antes de guardar la detección.',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: const Color(0xFFC62828),
+                                fontWeight: FontWeight.w700,
+                                height: 1.35,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            FilledButton.icon(
+                              onPressed: () async {
+                                await _openCropsScreenFromCapture();
+                                if (context.mounted) {
+                                  setBottomSheetState(() {});
+                                }
+                              },
+                              icon: const Icon(Icons.add_location_alt_outlined),
+                              label: const Text('Agregar parcela'),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    StatefulBuilder(
+                      builder: (buttonContext, setButtonState) {
+                        return ElevatedButton(
+                          onPressed: isSaving || !hasParcelaSeleccionada
+                              ? null
+                              : () async {
+                                  final imageBytes = _selectedImageBytes;
+                                  if (imageBytes == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'No hay imagen para guardar.',
+                                        ),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  setButtonState(() {
+                                    isSaving = true;
+                                  });
+
+                                  final location =
+                                      await _resolveLocationForSave();
+
+                                  final success =
+                                      await DetectionService().saveDetection(
+                                    userId: widget.userId,
+                                    plagaNombre: plaga,
+                                    confianza: confianzaValor,
+                                    latitud: location.latitude,
+                                    longitud: location.longitude,
+                                    ubicacionOrigen: location.origin,
+                                    imageBytes: imageBytes,
+                                    cultivoId: _parcelaSeleccionadaId,
+                                    boundingBox: _lastDetection?['box'] is Rect
+                                        ? _lastDetection!['box'] as Rect
+                                        : null,
+                                  );
+
+                                  if (!mounted) return;
+
+                                  if (success) {
+                                    Navigator.pop(this.context);
+                                    ScaffoldMessenger.of(this.context)
+                                        .showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Detección guardada en el historial',
+                                        ),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  } else {
+                                    setButtonState(() {
+                                      isSaving = false;
+                                    });
+                                    ScaffoldMessenger.of(this.context)
+                                        .showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'No se pudo guardar la detección.',
+                                        ),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: darkGreen,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor:
+                                darkGreen.withOpacity(0.45),
+                            disabledForegroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: isSaving
+                              ? const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(width: 10),
+                                    Text('Guardando...'),
+                                  ],
+                                )
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.save_outlined),
+                                    SizedBox(width: 8),
+                                    Text('Guardar en historial'),
+                                  ],
+                                ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
             );
@@ -842,252 +962,448 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const lightGreen = Color(0xFFE8F5E9);
+    const backgroundColor = Color(0xFFF6FAF6);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+
     final textTheme = Theme.of(context).textTheme;
     final bool isImageLoaded = _selectedImageBytes != null;
     final detectionBox = _lastDetection?['box'];
     final hasDetectionBox =
         _lastDetection != null && detectionBox is Rect && !detectionBox.isEmpty;
+    final previewHeight =
+        (MediaQuery.of(context).size.height * 0.36).clamp(260.0, 380.0);
 
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text('Capturar Plaga'),
+        title: const Text('Capturar plaga'),
         centerTitle: true,
+        backgroundColor: lightGreen,
+        elevation: 0,
+        foregroundColor: darkGreen,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
-          child: Column(
-            children: [
-              Card(
-                color: colorScheme.secondaryContainer,
-                margin: const EdgeInsets.only(bottom: 24.0),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 12.0,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.lightbulb_outline_rounded,
-                        color: colorScheme.onSecondaryContainer,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          'Asegúrate de enfocar bien la hoja y tener buena luz.',
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSecondaryContainer,
-                            fontWeight: FontWeight.w500,
-                          ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              lightGreen,
+              backgroundColor,
+              Colors.white,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.88),
+                        borderRadius: BorderRadius.circular(26),
+                        border: Border.all(
+                          color: primaryGreen.withOpacity(0.08),
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: darkGreen.withOpacity(0.08),
+                            blurRadius: 28,
+                            offset: const Offset(0, 14),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              if (_parcelas.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _parcelaSeleccionadaId,
-                    decoration: InputDecoration(
-                      labelText: 'Parcela',
-                      prefixIcon: const Icon(Icons.landscape),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 58,
+                            height: 58,
+                            decoration: BoxDecoration(
+                              color: lightGreen,
+                              borderRadius: BorderRadius.circular(19),
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt_outlined,
+                              color: primaryGreen,
+                              size: 30,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Analizar cultivo',
+                                  style: textTheme.headlineSmall?.copyWith(
+                                    color: textPrimary,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Captura o selecciona una imagen de arroz',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: textSecondary,
+                                    height: 1.35,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    items: _parcelas.map((parcela) {
-                      final id = parcela['id']?.toString() ?? '';
-                      final nombre =
-                          parcela['nombre_parcela']?.toString() ?? 'Sin nombre';
-
-                      return DropdownMenuItem<String>(
-                        value: id,
-                        child: Text(nombre),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _parcelaSeleccionadaId = value;
-                      });
-                    },
-                  ),
-                )
-              else
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: 'Parcela',
-                          prefixIcon: const Icon(Icons.landscape),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF8E1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFF8A5A00).withOpacity(0.10),
                         ),
-                        child: const Text('No tienes parcelas registradas'),
                       ),
-                      const SizedBox(height: 10),
-                      FilledButton.icon(
-                        onPressed: _openCropsScreenFromCapture,
-                        icon: const Icon(Icons.add_location_alt_outlined),
-                        label: const Text('Agregar parcela'),
-                      ),
-                    ],
-                  ),
-                ),
-              Container(
-                width: double.infinity,
-                height: MediaQuery.of(context).size.height * 0.35,
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isImageLoaded
-                        ? colorScheme.primary
-                        : colorScheme.outlineVariant,
-                    width: 2,
-                  ),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: isImageLoaded
-                    ? Stack(
-                        fit: StackFit.expand,
+                      child: Row(
                         children: [
-                          Image.memory(
-                            _selectedImageBytes!,
-                            fit: BoxFit.cover,
-                            cacheWidth: 900,
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.75),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.lightbulb_outline_rounded,
+                              color: Color(0xFF8A5A00),
+                              size: 23,
+                            ),
                           ),
-                          if (hasDetectionBox)
-                            CustomPaint(
-                              painter: _DetectionBoxPainter(
-                                detection: _lastDetection!,
+                          const SizedBox(width: 13),
+                          Expanded(
+                            child: Text(
+                              'Asegúrate de enfocar bien la hoja y tener buena luz.',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: const Color(0xFF8A5A00),
+                                fontWeight: FontWeight.w700,
+                                height: 1.35,
+                                letterSpacing: 0,
                               ),
                             ),
-                          Align(
-                            alignment: Alignment.topRight,
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(8),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: primaryGreen.withOpacity(0.08),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: darkGreen.withOpacity(0.07),
+                            blurRadius: 24,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: _parcelas.isNotEmpty
+                          ? DropdownButtonFormField<String>(
+                              initialValue: _parcelaSeleccionadaId,
+                              decoration: InputDecoration(
+                                labelText: 'Parcela',
+                                prefixIcon:
+                                    const Icon(Icons.landscape_outlined),
+                                filled: true,
+                                fillColor: const Color(0xFFF8FBF8),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
                                 ),
-                                child: const Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: Icon(
-                                    Icons.edit_outlined,
-                                    color: Colors.white,
-                                    size: 24,
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide(
+                                    color: primaryGreen.withOpacity(0.12),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: const BorderSide(
+                                    color: primaryGreen,
+                                    width: 1.4,
                                   ),
                                 ),
                               ),
+                              items: _parcelas.map((parcela) {
+                                final id = parcela['id']?.toString() ?? '';
+                                final nombre =
+                                    parcela['nombre_parcela']?.toString() ??
+                                        'Sin nombre';
+
+                                return DropdownMenuItem<String>(
+                                  value: id,
+                                  child: Text(nombre),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _parcelaSeleccionadaId = value;
+                                });
+                              },
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                InputDecorator(
+                                  decoration: InputDecoration(
+                                    labelText: 'Parcela',
+                                    prefixIcon: const Icon(
+                                      Icons.landscape_outlined,
+                                    ),
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FBF8),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: BorderSide(
+                                        color:
+                                            primaryGreen.withOpacity(0.12),
+                                      ),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'No tienes parcelas registradas',
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                ElevatedButton.icon(
+                                  onPressed: _openCropsScreenFromCapture,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: darkGreen,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.add_location_alt_outlined,
+                                  ),
+                                  label: const Text('Agregar parcela'),
+                                ),
+                              ],
                             ),
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(26),
+                        border: Border.all(
+                          color: isImageLoaded
+                              ? primaryGreen.withOpacity(0.30)
+                              : primaryGreen.withOpacity(0.08),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: darkGreen.withOpacity(0.08),
+                            blurRadius: 28,
+                            offset: const Offset(0, 14),
                           ),
                         ],
-                      )
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.photo_camera_outlined,
-                            size: 80,
-                            color: colorScheme.onSurfaceVariant
-                                .withValues(alpha: 0.5),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No se ha seleccionado imagen',
-                            style: textTheme.titleMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: previewHeight.toDouble(),
+                          child: isImageLoaded
+                              ? Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Image.memory(
+                                      _selectedImageBytes!,
+                                      fit: BoxFit.cover,
+                                      cacheWidth: 900,
+                                    ),
+                                    if (hasDetectionBox)
+                                      CustomPaint(
+                                        painter: _DetectionBoxPainter(
+                                          detection: _lastDetection!,
+                                        ),
+                                      ),
+                                    Align(
+                                      alignment: Alignment.topRight,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.black54,
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: const Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Icon(
+                                              Icons.edit_outlined,
+                                              color: Colors.white,
+                                              size: 23,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Container(
+                                  color: lightGreen,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 86,
+                                        height: 86,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.72),
+                                          borderRadius:
+                                              BorderRadius.circular(28),
+                                        ),
+                                        child: const Icon(
+                                          Icons.photo_camera_outlined,
+                                          size: 48,
+                                          color: primaryGreen,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'No se ha seleccionado imagen',
+                                        style: textTheme.titleMedium?.copyWith(
+                                          color: textPrimary,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Usa la cámara o carga una foto desde galería.',
+                                        textAlign: TextAlign.center,
+                                        style: textTheme.bodySmall?.copyWith(
+                                          color: textSecondary,
+                                          height: 1.35,
+                                          letterSpacing: 0,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _pickFromGallery,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primaryGreen,
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              side: BorderSide(
+                                color: primaryGreen.withOpacity(0.35),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: const Text('Galería'),
                           ),
-                        ],
-                      ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _pickFromGallery,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: BorderSide(color: colorScheme.outline),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _takePhoto,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryGreen,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            icon: const Icon(Icons.camera_alt_outlined),
+                            label: const Text('Tomar foto'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 58,
+                      child: ElevatedButton.icon(
+                        onPressed:
+                            isImageLoaded && !_isAnalyzing ? _analyzeCrop : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: darkGreen,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: darkGreen.withOpacity(0.35),
+                          disabledForegroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                        icon: _isAnalyzing
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Icon(Icons.psychology_outlined, size: 24),
+                        label: Text(
+                          _isAnalyzing ? 'Analizando...' : 'Analizar cultivo',
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0,
+                          ),
                         ),
                       ),
-                      icon: const Icon(Icons.photo_library_outlined),
-                      label: const Text('Cargar de Galería'),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _takePhoto,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      icon: const Icon(Icons.camera_alt_outlined),
-                      label: const Text('Tomar Foto'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: ElevatedButton(
-                  onPressed:
-                      isImageLoaded && !_isAnalyzing ? _analyzeCrop : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    foregroundColor: colorScheme.onPrimary,
-                    disabledBackgroundColor:
-                        colorScheme.surfaceContainerHighest,
-                    disabledForegroundColor: colorScheme.onSurfaceVariant,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.psychology_outlined,
-                        size: 24,
-                        color: isImageLoaded && !_isAnalyzing
-                            ? colorScheme.onPrimary
-                            : colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        _isAnalyzing ? 'Analizando...' : 'Analizar Cultivo',
-                        style: textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: isImageLoaded && !_isAnalyzing
-                              ? colorScheme.onPrimary
-                              : colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-            ],
+            ),
           ),
         ),
       ),
@@ -1121,10 +1437,10 @@ class _DetectionBoxPainter extends CustomPainter {
     );
 
     final fillPaint = Paint()
-      ..color = Colors.green.withValues(alpha: 0.16)
+      ..color = const Color(0xFF2E7D32).withOpacity(0.16)
       ..style = PaintingStyle.fill;
     final strokePaint = Paint()
-      ..color = Colors.green
+      ..color = const Color(0xFF2E7D32)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
 
@@ -1158,7 +1474,7 @@ class _DetectionBoxPainter extends CustomPainter {
       labelHeight,
     );
 
-    final labelPaint = Paint()..color = Colors.green;
+    final labelPaint = Paint()..color = const Color(0xFF2E7D32);
     canvas.drawRect(labelRect, labelPaint);
     textPainter.paint(
       canvas,

@@ -120,8 +120,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) {
-          return const AlertDialog(
-            content: Row(
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            content: const Row(
               children: [
                 CircularProgressIndicator(),
                 SizedBox(width: 18),
@@ -169,6 +172,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Text('Eliminar detección'),
           content: const Text('¿Deseas eliminar esta detección?'),
           actions: [
@@ -217,6 +223,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Text('Limpiar historial'),
           content: const Text(
             'Esta acción eliminará todas tus detecciones registradas. Tus parcelas no serán eliminadas.',
@@ -256,15 +265,502 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _reloadHistory();
   }
 
+  Widget _buildStatusChip({
+    required BuildContext context,
+    required String nombrePlaga,
+    required double confianza,
+  }) {
+    const darkGreen = Color(0xFF1B5E20);
+    const warningBackground = Color(0xFFFFF8E1);
+    const riskBackground = Color(0xFFFFEBEE);
+
+    final normalized = nombrePlaga.toLowerCase();
+    final isHealthy = normalized.contains('sano') ||
+        normalized.contains('saludable') ||
+        normalized.contains('sin plaga');
+    final isLowConfidence = confianza > 0 && confianza < 0.55;
+    final isUnknown = normalized.contains('sin nombre') ||
+        normalized.contains('sin dete') ||
+        normalized.contains('no detect');
+
+    final label = isHealthy
+        ? 'Arroz sano'
+        : isLowConfidence
+            ? 'Baja confianza'
+            : isUnknown
+                ? 'Sin detección'
+                : 'Plaga detectada';
+    final backgroundColor = isHealthy
+        ? const Color(0xFFE8F5E9)
+        : isLowConfidence
+            ? warningBackground
+            : isUnknown
+                ? const Color(0xFFF3F4F6)
+                : riskBackground;
+    final foregroundColor = isHealthy
+        ? darkGreen
+        : isLowConfidence
+            ? const Color(0xFF8A5A00)
+            : isUnknown
+                ? const Color(0xFF4B5563)
+                : const Color(0xFFC62828);
+    final icon = isHealthy
+        ? Icons.eco_outlined
+        : isLowConfidence
+            ? Icons.info_outline
+            : isUnknown
+                ? Icons.search_off_outlined
+                : Icons.bug_report_outlined;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: foregroundColor.withOpacity(0.10),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 14,
+            color: foregroundColor,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStateCard({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    Color? iconColor,
+    bool showProgress = false,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 430),
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: primaryGreen.withOpacity(0.08),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: darkGreen.withOpacity(0.08),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Icon(
+                  icon,
+                  size: 34,
+                  color: iconColor ?? primaryGreen,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: textPrimary,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: textSecondary,
+                      height: 1.4,
+                      letterSpacing: 0,
+                    ),
+              ),
+              if (showProgress) ...[
+                const SizedBox(height: 20),
+                const SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: CircularProgressIndicator(strokeWidth: 3),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistoryHeader({
+    required BuildContext context,
+    required int total,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.88),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(
+            color: primaryGreen.withOpacity(0.08),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: darkGreen.withOpacity(0.08),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(19),
+              ),
+              child: const Icon(
+                Icons.history,
+                color: primaryGreen,
+                size: 30,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Historial',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: textPrimary,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Consulta tus detecciones registradas',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: textSecondary,
+                          height: 1.35,
+                          letterSpacing: 0,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                total == 1 ? '1 registro' : '$total registros',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: darkGreen,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetectionCard({
+    required BuildContext context,
+    required Map<String, dynamic> deteccion,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+
+    final detectionId = deteccion['id']?.toString() ?? '';
+    final rutaImagen = deteccion['ruta_imagen']?.toString() ?? '';
+    final nombrePlaga = deteccion['nombre_comun']?.toString() ?? 'Sin nombre';
+    final confianza = _toDouble(deteccion['confianza']);
+    final ubicacion = _formatLocation(
+      deteccion['latitud'],
+      deteccion['longitud'],
+    );
+    final ubicacionOrigen = _formatLocationOrigin(
+      deteccion['ubicacion_origen'],
+      deteccion['latitud'],
+      deteccion['longitud'],
+    );
+    final fecha = _formatDate(deteccion['fecha_hora']);
+    final imageFile = File(rutaImagen);
+    final nombreParcela =
+        deteccion['nombre_parcela']?.toString() ?? 'Parcela no registrada';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DetectionDetailScreen(
+                detection: deteccion,
+              ),
+            ),
+          );
+        },
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: primaryGreen.withOpacity(0.08),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: darkGreen.withOpacity(0.07),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: SizedBox(
+                  width: 94,
+                  height: 112,
+                  child: imageFile.existsSync()
+                      ? Image.file(
+                          imageFile,
+                          fit: BoxFit.cover,
+                        )
+                      : Container(
+                          color: const Color(0xFFE8F5E9),
+                          child: const Icon(
+                            Icons.eco_outlined,
+                            color: primaryGreen,
+                            size: 34,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            nombrePlaga,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      color: textPrimary,
+                                      fontWeight: FontWeight.w900,
+                                      height: 1.18,
+                                      letterSpacing: 0,
+                                    ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: darkGreen,
+                          size: 22,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _buildStatusChip(
+                      context: context,
+                      nombrePlaga: nombrePlaga,
+                      confianza: confianza,
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 15,
+                          color: textSecondary,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            fecha,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0,
+                                    ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      'Parcela: $nombreParcela',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: textSecondary,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: confianza.clamp(0.0, 1.0).toDouble(),
+                              minHeight: 7,
+                              backgroundColor: const Color(0xFFE8F5E9),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                primaryGreen,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '${(confianza * 100).round()}%',
+                          style:
+                              Theme.of(context).textTheme.labelMedium?.copyWith(
+                                    color: primaryGreen,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0,
+                                  ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      'Confianza: ${(confianza * 100).round()}%',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: primaryGreen,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 16,
+                          color: textSecondary,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            '$ubicacion\n$ubicacionOrigen',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: textSecondary,
+                                      height: 1.35,
+                                      letterSpacing: 0,
+                                    ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: 'Eliminar detección',
+                icon: const Icon(Icons.delete_outline),
+                color: Theme.of(context).colorScheme.error,
+                onPressed: detectionId.isEmpty
+                    ? null
+                    : () => _confirmDeleteDetection(detectionId),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    const darkGreen = Color(0xFF1B5E20);
+    const lightGreen = Color(0xFFE8F5E9);
+    const backgroundColor = Color(0xFFF6FAF6);
 
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text('Historial de Detecciones'),
+        title: const Text('Historial'),
         centerTitle: true,
+        backgroundColor: lightGreen,
+        elevation: 0,
+        foregroundColor: darkGreen,
         actions: [
           PopupMenuButton<String>(
             tooltip: 'Opciones',
@@ -287,190 +783,109 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _historyFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Text(
-                  'No se pudo cargar el historial',
-                  textAlign: TextAlign.center,
-                  style: textTheme.titleMedium?.copyWith(
-                    color: colorScheme.error,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            );
-          }
-
-          final detecciones = snapshot.data ?? [];
-          if (detecciones.isEmpty) {
-            return Center(
-              child: Text(
-                'Aún no tienes detecciones registradas',
-                style: textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: detecciones.length,
-            itemBuilder: (context, index) {
-              final deteccion = detecciones[index];
-              final detectionId = deteccion['id']?.toString() ?? '';
-              final rutaImagen = deteccion['ruta_imagen']?.toString() ?? '';
-              final nombrePlaga =
-                  deteccion['nombre_comun']?.toString() ?? 'Sin nombre';
-              final confianza = _toDouble(deteccion['confianza']);
-              final ubicacion = _formatLocation(
-                deteccion['latitud'],
-                deteccion['longitud'],
-              );
-              final ubicacionOrigen = _formatLocationOrigin(
-                deteccion['ubicacion_origen'],
-                deteccion['latitud'],
-                deteccion['longitud'],
-              );
-              final fecha = _formatDate(deteccion['fecha_hora']);
-              final imageFile = File(rutaImagen);
-              final nombreParcela = deteccion['nombre_parcela']?.toString() ??
-                  'Parcela no registrada';
-
-              return Card(
-                elevation: 1,
-                color: colorScheme.surfaceContainerLow,
-                clipBehavior: Clip.antiAlias,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DetectionDetailScreen(
-                          detection: deteccion,
-                        ),
-                      ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: SizedBox(
-                            width: 92,
-                            height: 92,
-                            child: imageFile.existsSync()
-                                ? Image.file(
-                                    imageFile,
-                                    fit: BoxFit.cover,
-                                  )
-                                : ColoredBox(
-                                    color: colorScheme.surfaceContainerHighest,
-                                    child: Icon(
-                                      Icons.image_not_supported_outlined,
-                                      color: colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                nombrePlaga,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: textTheme.titleMedium?.copyWith(
-                                  color: colorScheme.onSurface,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                fecha,
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Parcela: $nombreParcela',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Confianza: ${(confianza * 100).round()}%',
-                                style: textTheme.bodyMedium?.copyWith(
-                                  color: colorScheme.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.location_on_outlined,
-                                    size: 16,
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      '$ubicacion\n$ubicacionOrigen',
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: textTheme.bodySmall?.copyWith(
-                                        color: colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Eliminar detección',
-                          icon: const Icon(Icons.delete_outline),
-                          color: colorScheme.error,
-                          onPressed: detectionId.isEmpty
-                              ? null
-                              : () => _confirmDeleteDetection(detectionId),
-                        ),
-                      ],
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              lightGreen,
+              backgroundColor,
+              Colors.white,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: _historyFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Column(
+                  children: [
+                    _buildHistoryHeader(
+                      context: context,
+                      total: 0,
                     ),
-                  ),
+                    Expanded(
+                      child: _buildStateCard(
+                        context: context,
+                        icon: Icons.history,
+                        title: 'Cargando historial',
+                        subtitle: 'Estamos preparando tus detecciones registradas.',
+                        showProgress: true,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Column(
+                  children: [
+                    _buildHistoryHeader(
+                      context: context,
+                      total: 0,
+                    ),
+                    Expanded(
+                      child: _buildStateCard(
+                        context: context,
+                        icon: Icons.error_outline,
+                        title: 'No se pudo cargar el historial',
+                        subtitle: 'Intenta volver a abrir esta pantalla en unos momentos.',
+                        iconColor: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              final detecciones = snapshot.data ?? [];
+              if (detecciones.isEmpty) {
+                return Column(
+                  children: [
+                    _buildHistoryHeader(
+                      context: context,
+                      total: 0,
+                    ),
+                    Expanded(
+                      child: _buildStateCard(
+                        context: context,
+                        icon: Icons.eco_outlined,
+                        title: 'Aún no hay detecciones',
+                        subtitle:
+                            'Cuando analices una imagen, aparecerá aquí tu historial.',
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return ListView.builder(
+                padding: EdgeInsets.only(
+                  bottom: 24 + MediaQuery.of(context).padding.bottom,
                 ),
+                itemCount: detecciones.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return _buildHistoryHeader(
+                      context: context,
+                      total: detecciones.length,
+                    );
+                  }
+
+                  final deteccion = detecciones[index - 1];
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                    child: _buildDetectionCard(
+                      context: context,
+                      deteccion: deteccion,
+                    ),
+                  );
+                },
               );
             },
-          );
-        },
+          ),
+        ),
       ),
     );
   }
