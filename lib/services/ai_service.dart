@@ -12,12 +12,12 @@ class AIService {
 
   static final AIService instance = AIService._();
   static const int _inputSize = 640;
-  static const double _confidenceThreshold = 0.30;
+  static const double _confidenceThreshold = 0.50;
   static const double _possibleThreshold = 0.50;
   static const double _confirmedThreshold = 0.70;
   static const double _iouThreshold = 0.45;
   static const String _modelPath =
-      'assets/models/detector_yolo_plagas_v1_float32.tflite';
+      'assets/models/detector_yolo_plagas_v2_sogata_float32.tflite';
   static const String _classNamesPath =
       'assets/models/class_names_detector.txt';
   static const List<String> _defaultLabels = [
