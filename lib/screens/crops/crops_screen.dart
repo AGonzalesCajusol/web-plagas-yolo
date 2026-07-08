@@ -281,6 +281,262 @@ class _CropsScreenState extends State<CropsScreen> {
     }
   }
 
+  Future<void> _showEditCropDialog(Map<String, dynamic> cultivo) async {
+    final cultivoId = cultivo['id']?.toString() ?? '';
+    final nombreActual = cultivo['nombre_parcela']?.toString() ?? '';
+    final coordenadasActuales =
+        cultivo['coordenadas_sector']?.toString() ?? '';
+
+    if (cultivoId.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo identificar la parcela seleccionada.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final editNombreController = TextEditingController(text: nombreActual);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        String coordenadasCapturadas = coordenadasActuales;
+        bool isGettingLocation = false;
+        bool isSaving = false;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
+              title: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.edit_outlined,
+                      color: Color(0xFF2E7D32),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text('Editar parcela'),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: editNombreController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: _fieldDecoration(
+                        context: context,
+                        labelText: 'Nombre de la parcela',
+                        icon: Icons.grass_outlined,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF6FAF6),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF2E7D32).withOpacity(0.10),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.location_on_outlined,
+                            size: 20,
+                            color: Color(0xFF2E7D32),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              coordenadasCapturadas.trim().isEmpty
+                                  ? 'Ubicación no capturada'
+                                  : coordenadasCapturadas,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: const Color(0xFF6B7280),
+                                    height: 1.35,
+                                    letterSpacing: 0,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: isGettingLocation
+                              ? null
+                              : () async {
+                                  setDialogState(() {
+                                    isGettingLocation = true;
+                                    coordenadasCapturadas =
+                                        'Buscando señal GPS...';
+                                  });
+
+                                  final locationText =
+                                      await _getCurrentLocationText();
+
+                                  if (context.mounted) {
+                                    setDialogState(() {
+                                      coordenadasCapturadas = locationText;
+                                      isGettingLocation = false;
+                                    });
+                                  }
+                                },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF2E7D32),
+                            side: BorderSide(
+                              color:
+                                  const Color(0xFF2E7D32).withOpacity(0.35),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 13,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                          ),
+                          icon: isGettingLocation
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.gps_fixed_outlined),
+                          label: Text(
+                            isGettingLocation
+                                ? 'Obteniendo ubicación...'
+                                : 'Actualizar ubicación',
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: isSaving
+                              ? null
+                              : () async {
+                                  final manualLocation =
+                                      await _showManualLocationDialog();
+                                  if (manualLocation == null ||
+                                      !context.mounted) {
+                                    return;
+                                  }
+                                  setDialogState(() {
+                                    coordenadasCapturadas = manualLocation;
+                                  });
+                                },
+                          icon: const Icon(Icons.edit_location_alt_outlined),
+                          label: const Text('Ingresar manualmente'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      isSaving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final nombre = editNombreController.text.trim();
+                          final coordenadas = coordenadasCapturadas.trim();
+
+                          if (nombre.isEmpty || coordenadas.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Ingresa el nombre y las coordenadas.',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isSaving = true;
+                          });
+
+                          final success =
+                              await CropService.instance.updateCultivo(
+                            userId: widget.userId,
+                            cultivoId: cultivoId,
+                            nombre: nombre,
+                            coordenadas: coordenadas,
+                          );
+
+                          if (!mounted) return;
+
+                          if (success) {
+                            Navigator.pop(dialogContext);
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Parcela actualizada correctamente.',
+                                ),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                            setState(() {});
+                          } else {
+                            setDialogState(() {
+                              isSaving = false;
+                            });
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'No se pudo actualizar la parcela.',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                  child: isSaving
+                      ? const Text('Guardando...')
+                      : const Text('Guardar cambios'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    editNombreController.dispose();
+  }
+
   Future<String> _getCurrentLocationText() async {
     final automaticLocation = await _tryAutomaticLocationText();
     if (automaticLocation != null) return automaticLocation;
@@ -868,7 +1124,7 @@ class _CropsScreenState extends State<CropsScreen> {
                           ),
                           const SizedBox(width: 5),
                           Text(
-                            'Zona de monitoreo',
+                            'Monitoreo',
                             style:
                                 Theme.of(context).textTheme.labelSmall?.copyWith(
                                       color: primaryGreen,
@@ -880,6 +1136,14 @@ class _CropsScreenState extends State<CropsScreen> {
                       ),
                     ),
                     const Spacer(),
+                    IconButton(
+                      tooltip: 'Editar parcela',
+                      icon: const Icon(Icons.edit_outlined),
+                      color: primaryGreen,
+                      onPressed: cultivoId.isEmpty
+                          ? null
+                          : () => _showEditCropDialog(cultivo),
+                    ),
                     IconButton(
                       tooltip: 'Eliminar parcela',
                       icon: const Icon(Icons.delete_outline),

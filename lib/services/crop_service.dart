@@ -43,6 +43,42 @@ class CropService {
     return cultivoId;
   }
 
+  Future<bool> updateCultivo({
+    required String userId,
+    required String cultivoId,
+    required String nombre,
+    required String coordenadas,
+  }) async {
+    final normalizedUserId = userId.trim();
+    final normalizedCultivoId = cultivoId.trim();
+    final normalizedNombre = nombre.trim();
+    final normalizedCoordenadas = coordenadas.trim();
+
+    if (normalizedUserId.isEmpty ||
+        normalizedCultivoId.isEmpty ||
+        normalizedNombre.isEmpty ||
+        normalizedCoordenadas.isEmpty) {
+      return false;
+    }
+
+    try {
+      final db = await LocalDB.instance.database;
+      final rowsAffected = await db.update(
+        'cultivos',
+        {
+          'nombre_parcela': normalizedNombre,
+          'coordenadas_sector': normalizedCoordenadas,
+        },
+        where: 'id = ? AND usuario_id = ?',
+        whereArgs: [normalizedCultivoId, normalizedUserId],
+      );
+
+      return rowsAffected > 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<DeleteCultivoResult> deleteCultivo({
     required String userId,
     required String cultivoId,
