@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../services/detection_service.dart';
 import '../../services/report_service.dart';
+import '../../utils/affectation_display_utils.dart';
 import 'detection_detail_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -427,6 +428,51 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  Widget _buildAffectationChip({
+    required BuildContext context,
+    required String? level,
+  }) {
+    final normalizedLevel = level?.trim().toUpperCase();
+    final foregroundColor = switch (normalizedLevel) {
+      'BAJO' => const Color(0xFF2E7D32),
+      'MEDIO' => const Color(0xFF8A5A00),
+      'ALTO' => const Color(0xFFC62828),
+      'NO_EVALUADO' => const Color(0xFF6B7280),
+      _ => const Color(0xFF64748B),
+    };
+    final backgroundColor = switch (normalizedLevel) {
+      'BAJO' => const Color(0xFFE8F5E9),
+      'MEDIO' => const Color(0xFFFFF8E1),
+      'ALTO' => const Color(0xFFFFEBEE),
+      _ => const Color(0xFFF3F4F6),
+    };
+    final label = AffectationDisplayUtils.levelLabel(level).toLowerCase();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: foregroundColor.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.speed_outlined, size: 14, color: foregroundColor),
+          const SizedBox(width: 5),
+          Text(
+            'Nivel $label',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHistoryHeader({
     required BuildContext context,
     required int total,
@@ -528,6 +574,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final rutaImagen = deteccion['ruta_imagen']?.toString() ?? '';
     final nombrePlaga = deteccion['nombre_comun']?.toString() ?? 'Sin nombre';
     final confianza = _toDouble(deteccion['confianza']);
+    final nivelAfectacion = deteccion['nivel_afectacion']?.toString();
     final ubicacion = _formatLocation(
       deteccion['latitud'],
       deteccion['longitud'],
@@ -608,13 +655,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             nombrePlaga,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style:
-                                Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      color: textPrimary,
-                                      fontWeight: FontWeight.w900,
-                                      height: 1.18,
-                                      letterSpacing: 0,
-                                    ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  color: textPrimary,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1.18,
+                                  letterSpacing: 0,
+                                ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -626,10 +675,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _buildStatusChip(
-                      context: context,
-                      nombrePlaga: nombrePlaga,
-                      confianza: confianza,
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildStatusChip(
+                          context: context,
+                          nombrePlaga: nombrePlaga,
+                          confianza: confianza,
+                        ),
+                        _buildAffectationChip(
+                          context: context,
+                          level: nivelAfectacion,
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -696,7 +755,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                     const SizedBox(height: 7),
                     Text(
-                      'Confianza: ${(confianza * 100).round()}%',
+                      'Confianza IA: ${(confianza * 100).round()}%',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: primaryGreen,
                             fontWeight: FontWeight.w700,
@@ -811,7 +870,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         context: context,
                         icon: Icons.history,
                         title: 'Cargando historial',
-                        subtitle: 'Estamos preparando tus detecciones registradas.',
+                        subtitle:
+                            'Estamos preparando tus detecciones registradas.',
                         showProgress: true,
                       ),
                     ),
@@ -831,7 +891,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         context: context,
                         icon: Icons.error_outline,
                         title: 'No se pudo cargar el historial',
-                        subtitle: 'Intenta volver a abrir esta pantalla en unos momentos.',
+                        subtitle:
+                            'Intenta volver a abrir esta pantalla en unos momentos.',
                         iconColor: Theme.of(context).colorScheme.error,
                       ),
                     ),

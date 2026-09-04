@@ -2,6 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../models/pest_recommendation.dart';
+import '../../services/recommendation_service.dart';
+import '../../utils/affectation_display_utils.dart';
+
 class DetectionDetailScreen extends StatelessWidget {
   const DetectionDetailScreen({
     super.key,
@@ -283,11 +287,12 @@ class DetectionDetailScreen extends StatelessWidget {
                         const SizedBox(height: 10),
                         Text(
                           'Imagen no disponible',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: textSecondary,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: textSecondary,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0,
+                                  ),
                         ),
                       ],
                     ),
@@ -405,7 +410,7 @@ class DetectionDetailScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  'Confianza $confidencePercent%',
+                  'Confianza IA $confidencePercent%',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: darkGreen,
                         fontWeight: FontWeight.w800,
@@ -425,6 +430,286 @@ class DetectionDetailScreen extends StatelessWidget {
               valueColor: const AlwaysStoppedAnimation<Color>(primaryGreen),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Color _affectationColor(String? level) {
+    return switch (level?.trim().toUpperCase()) {
+      'BAJO' => const Color(0xFF2E7D32),
+      'MEDIO' => const Color(0xFF8A5A00),
+      'ALTO' => const Color(0xFFC62828),
+      'NO_EVALUADO' => const Color(0xFF6B7280),
+      _ => const Color(0xFF64748B),
+    };
+  }
+
+  Color _affectationBackground(String? level) {
+    return switch (level?.trim().toUpperCase()) {
+      'BAJO' => const Color(0xFFE8F5E9),
+      'MEDIO' => const Color(0xFFFFF8E1),
+      'ALTO' => const Color(0xFFFFEBEE),
+      _ => const Color(0xFFF3F4F6),
+    };
+  }
+
+  Widget _buildAffectationCard({
+    required BuildContext context,
+    required String? level,
+    required String? method,
+    required String? range,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+    final hasRegisteredLevel =
+        AffectationDisplayUtils.hasRegisteredLevel(level);
+    final levelColor = _affectationColor(level);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: primaryGreen.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: darkGreen.withValues(alpha: 0.07),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Evaluación de afectación',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: textPrimary,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Nivel observado',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: textSecondary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+          ),
+          const SizedBox(height: 7),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: _affectationBackground(level),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: levelColor.withValues(alpha: 0.12)),
+            ),
+            child: Text(
+              'Nivel ${AffectationDisplayUtils.levelLabel(level).toLowerCase()}',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: levelColor,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+            ),
+          ),
+          if (!hasRegisteredLevel) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Esta detección fue guardada antes de incorporar la evaluación '
+              'guiada del nivel de afectación. No hay recomendaciones para este registro.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: textSecondary,
+                    height: 1.45,
+                    letterSpacing: 0,
+                  ),
+            ),
+          ] else ...[
+            const SizedBox(height: 18),
+            _DetailRow(
+              icon: Icons.fact_check_outlined,
+              label: 'Método de evaluación',
+              value: AffectationDisplayUtils.methodLabel(method),
+            ),
+            const SizedBox(height: 14),
+            _DetailRow(
+              icon: Icons.straighten_outlined,
+              label: 'Rango seleccionado',
+              value: AffectationDisplayUtils.rangeLabel(range),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecommendationItem({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String content,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F5E9),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, size: 20, color: primaryGreen),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: textPrimary,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                content,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: textSecondary,
+                      height: 1.45,
+                      letterSpacing: 0,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecommendationsCard({
+    required BuildContext context,
+    required PestRecommendation? recommendation,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const darkGreen = Color(0xFF1B5E20);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: primaryGreen.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: darkGreen.withValues(alpha: 0.07),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Recomendaciones de manejo',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: textPrimary,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+          ),
+          const SizedBox(height: 16),
+          if (recommendation == null)
+            Text(
+              'No fue posible cargar las recomendaciones para esta detección.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: textSecondary,
+                    height: 1.45,
+                    letterSpacing: 0,
+                  ),
+            )
+          else ...[
+            if (recommendation.warning != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF8E1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFF8A5A00).withValues(alpha: 0.18),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Importante',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: const Color(0xFF6D4C00),
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      recommendation.warning!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: const Color(0xFF6D4C00),
+                            height: 1.45,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            _buildRecommendationItem(
+              context: context,
+              icon: Icons.visibility_outlined,
+              title: 'Monitoreo',
+              content: recommendation.monitoring,
+            ),
+            const SizedBox(height: 16),
+            _buildRecommendationItem(
+              context: context,
+              icon: Icons.agriculture_outlined,
+              title: 'Manejo cultural',
+              content: recommendation.culturalManagement,
+            ),
+            const SizedBox(height: 16),
+            _buildRecommendationItem(
+              context: context,
+              icon: Icons.hub_outlined,
+              title: 'Manejo integrado',
+              content: recommendation.integratedManagement,
+            ),
+            const SizedBox(height: 16),
+            _buildRecommendationItem(
+              context: context,
+              icon: Icons.health_and_safety_outlined,
+              title: 'Control fitosanitario',
+              content: recommendation.phytosanitaryControl,
+            ),
+          ],
         ],
       ),
     );
@@ -521,6 +806,22 @@ class DetectionDetailScreen extends StatelessWidget {
       fallback: 'Parcela no registrada',
     );
     final date = _formatDate(detection['fecha_hora']);
+    final affectationLevel = detection['nivel_afectacion']?.toString();
+    final evaluationMethod = detection['metodo_evaluacion']?.toString();
+    final affectationRange = detection['rango_afectacion']?.toString();
+    final hasRegisteredLevel =
+        AffectationDisplayUtils.hasRegisteredLevel(affectationLevel);
+    PestRecommendation? recommendation;
+    if (hasRegisteredLevel) {
+      try {
+        recommendation = const RecommendationService().recommend(
+          pestName: commonName,
+          level: affectationLevel!,
+        );
+      } catch (_) {
+        recommendation = null;
+      }
+    }
     final boxLeft = _nullableDoubleValue('box_left');
     final boxTop = _nullableDoubleValue('box_top');
     final boxRight = _nullableDoubleValue('box_right');
@@ -641,6 +942,20 @@ class DetectionDetailScreen extends StatelessWidget {
                       confidence: confidence,
                       confidencePercent: confidencePercent,
                     ),
+                    const SizedBox(height: 18),
+                    _buildAffectationCard(
+                      context: context,
+                      level: affectationLevel,
+                      method: evaluationMethod,
+                      range: affectationRange,
+                    ),
+                    if (hasRegisteredLevel) ...[
+                      const SizedBox(height: 18),
+                      _buildRecommendationsCard(
+                        context: context,
+                        recommendation: recommendation,
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     _buildInfoCard(
                       context: context,

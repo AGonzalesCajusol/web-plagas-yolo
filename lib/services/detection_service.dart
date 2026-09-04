@@ -30,6 +30,10 @@ class DetectionService {
     required Uint8List imageBytes,
     Rect? boundingBox,
     String? cultivoId,
+    String? nivelAfectacion,
+    String? metodoEvaluacion,
+    String? rangoAfectacion,
+    String? recomendacionVersion,
   }) async {
     try {
       final db = await LocalDB.instance.database;
@@ -73,6 +77,10 @@ class DetectionService {
           'last_sync_at': null,
           'sync_error': null,
           'retry_count': 0,
+          'nivel_afectacion': nivelAfectacion,
+          'metodo_evaluacion': metodoEvaluacion,
+          'rango_afectacion': rangoAfectacion,
+          'recomendacion_version': recomendacionVersion,
         });
       });
 
@@ -109,7 +117,11 @@ class DetectionService {
         detecciones.box_left,
         detecciones.box_top,
         detecciones.box_right,
-        detecciones.box_bottom
+        detecciones.box_bottom,
+        detecciones.nivel_afectacion,
+        detecciones.metodo_evaluacion,
+        detecciones.rango_afectacion,
+        detecciones.recomendacion_version
       FROM detecciones
       INNER JOIN plagas ON detecciones.plaga_id = plagas.id
       LEFT JOIN cultivos ON detecciones.cultivo_id = cultivos.id
@@ -319,6 +331,10 @@ class DetectionService {
       detecciones.last_sync_at,
       detecciones.sync_error,
       detecciones.retry_count,
+      detecciones.nivel_afectacion,
+      detecciones.metodo_evaluacion,
+      detecciones.rango_afectacion,
+      detecciones.recomendacion_version,
       cultivos.nombre_parcela,
       cultivos.coordenadas_sector,
       plagas.nombre_comun,
@@ -428,9 +444,10 @@ class DetectionService {
       for (final row in rows) {
         final id = row['id'] as int;
 
-        final rawName = row['nombre_comun']?.toString().trim().isNotEmpty == true
-            ? row['nombre_comun'].toString()
-            : row['nombre_cientifico']?.toString() ?? '';
+        final rawName =
+            row['nombre_comun']?.toString().trim().isNotEmpty == true
+                ? row['nombre_comun'].toString()
+                : row['nombre_cientifico']?.toString() ?? '';
 
         final canonicalName = PestNameNormalizer.normalize(rawName);
 
@@ -473,7 +490,7 @@ class DetectionService {
 
     return changes;
   }
-  
+
   Future<int> insertRemoteDetections({
     required String userId,
     required List<Map<String, dynamic>> remoteDetections,
@@ -563,6 +580,14 @@ class DetectionService {
             'box_top': _remoteDouble(remote, const ['box_top']),
             'box_right': _remoteDouble(remote, const ['box_right']),
             'box_bottom': _remoteDouble(remote, const ['box_bottom']),
+            'nivel_afectacion':
+                _remoteString(remote, const ['nivel_afectacion']),
+            'metodo_evaluacion':
+                _remoteString(remote, const ['metodo_evaluacion']),
+            'rango_afectacion':
+                _remoteString(remote, const ['rango_afectacion']),
+            'recomendacion_version':
+                _remoteString(remote, const ['recomendacion_version']),
             'ruta_imagen': localImagePath,
             'dispositivo_id':
                 _remoteString(remote, const ['dispositivo_id']) ?? 'Nube',

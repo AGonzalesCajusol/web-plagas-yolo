@@ -18,9 +18,7 @@ class SyncSummary {
   final int synced;
   final int failed;
 
-
   final int remoteTotal;
-
 
   final int downloaded;
 }
@@ -73,7 +71,6 @@ class SyncService {
     var synced = 0;
     var failed = 0;
 
-    
     for (final detection in detections) {
       final detectionId = detection['id']?.toString() ?? '';
 
@@ -115,6 +112,10 @@ class SyncService {
             'box_top': detection['box_top'],
             'box_right': detection['box_right'],
             'box_bottom': detection['box_bottom'],
+            'nivel_afectacion': detection['nivel_afectacion'],
+            'metodo_evaluacion': detection['metodo_evaluacion'],
+            'rango_afectacion': detection['rango_afectacion'],
+            'recomendacion_version': detection['recomendacion_version'],
             'ruta_imagen_local': detection['ruta_imagen'],
             'image_key': imageKey,
             'imagen_url': null,
@@ -154,7 +155,6 @@ class SyncService {
       }
     }
 
-
     var remoteTotal = 0;
     var downloaded = 0;
 
@@ -170,9 +170,7 @@ class SyncService {
           userId: userId,
           remoteDetections: remoteDetections,
         );
-      } catch (_) {
-        
-      }
+      } catch (_) {}
     }
 
     await DetectionService.instance.normalizeExistingPestNames();

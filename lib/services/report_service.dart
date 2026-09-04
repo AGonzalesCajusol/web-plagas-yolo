@@ -4,6 +4,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../utils/affectation_display_utils.dart';
+
 class ReportService {
   Future<String> generateFullReport(
       List<Map<String, dynamic>> detecciones) async {
@@ -22,6 +24,7 @@ class ReportService {
             ? 'Parcela no registrada'
             : 'Varias parcelas';
     final plagaMasFrecuente = _mostFrequentPest(detecciones);
+    final affectationCounts = _countAffectationLevels(detecciones);
 
     pdf.addPage(
       pw.MultiPage(
@@ -48,6 +51,7 @@ class ReportService {
           _buildSummaryBox(
             totalMuestras: totalMuestras,
             plagaMasFrecuente: plagaMasFrecuente,
+            affectationCounts: affectationCounts,
           ),
           pw.SizedBox(height: 18),
           pw.Text(
@@ -123,6 +127,7 @@ class ReportService {
   pw.Widget _buildSummaryBox({
     required int totalMuestras,
     required String plagaMasFrecuente,
+    required Map<String, int> affectationCounts,
   }) {
     return pw.Container(
       width: double.infinity,
@@ -132,23 +137,79 @@ class ReportService {
         border: pw.Border.all(color: PdfColors.green700, width: 0.8),
         borderRadius: pw.BorderRadius.circular(6),
       ),
-      child: pw.Row(
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Expanded(
-            child: _summaryMetric(
-              label: 'Total de muestras analizadas',
-              value: totalMuestras.toString(),
+          pw.Row(
+            children: [
+              pw.Expanded(
+                child: _summaryMetric(
+                  label: 'Total de muestras analizadas',
+                  value: totalMuestras.toString(),
+                ),
+              ),
+              pw.Container(width: 1, height: 42, color: PdfColors.green200),
+              pw.SizedBox(width: 14),
+              pw.Expanded(
+                child: _summaryMetric(
+                  label: 'Plaga más frecuente',
+                  value: plagaMasFrecuente,
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 12),
+          pw.Divider(color: PdfColors.green200, height: 1),
+          pw.SizedBox(height: 10),
+          pw.Text(
+            'Resumen por nivel observado',
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.grey700,
             ),
           ),
-          pw.Container(width: 1, height: 42, color: PdfColors.green200),
-          pw.SizedBox(width: 14),
-          pw.Expanded(
-            child: _summaryMetric(
-              label: 'Plaga más frecuente',
-              value: plagaMasFrecuente,
-            ),
+          pw.SizedBox(height: 7),
+          pw.Row(
+            children: [
+              _affectationCountMetric(
+                label: 'Bajo',
+                value: affectationCounts['BAJO']!,
+              ),
+              _affectationCountMetric(
+                label: 'Medio',
+                value: affectationCounts['MEDIO']!,
+              ),
+              _affectationCountMetric(
+                label: 'Alto',
+                value: affectationCounts['ALTO']!,
+              ),
+              _affectationCountMetric(
+                label: 'No evaluado',
+                value: affectationCounts['NO_EVALUADO']!,
+              ),
+              _affectationCountMetric(
+                label: 'Sin nivel registrado',
+                value: affectationCounts['NO_REGISTRADO']!,
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  pw.Widget _affectationCountMetric({
+    required String label,
+    required int value,
+  }) {
+    return pw.Expanded(
+      child: pw.Text(
+        '$label: $value',
+        style: const pw.TextStyle(
+          fontSize: 9,
+          color: PdfColors.grey800,
+        ),
       ),
     );
   }
@@ -186,9 +247,9 @@ class ReportService {
         decoration: const pw.BoxDecoration(color: PdfColors.green800),
         children: [
           _headerCell('N° / Fecha'),
-          _headerCell('Plaga Detectada'),
+          _headerCell('Plaga / Evaluación'),
           _headerCell('Parcela'),
-          _headerCell('Confianza (%)'),
+          _headerCell('Confianza IA (%)'),
           _headerCell('Ubicación (Lat/Lon)'),
           _headerCell('Evidencia visual'),
         ],
@@ -211,6 +272,17 @@ class ReportService {
       final pestName = detection['nombre_comun']?.toString() ?? 'No disponible';
       final parcelName =
           detection['nombre_parcela']?.toString() ?? 'Parcela no registrada';
+      final affectationLevel = detection['nivel_afectacion']?.toString();
+      final hasRegisteredLevel =
+          AffectationDisplayUtils.hasRegisteredLevel(affectationLevel);
+      final affectationDetails = hasRegisteredLevel
+          ? 'Nivel observado: '
+              '${AffectationDisplayUtils.levelLabel(affectationLevel)}\n'
+              'Método de evaluación: '
+              '${AffectationDisplayUtils.methodLabel(detection['metodo_evaluacion']?.toString())}\n'
+              'Rango: '
+              '${AffectationDisplayUtils.rangeLabel(detection['rango_afectacion']?.toString())}'
+          : 'Nivel observado: No registrado';
 
       rows.add(
         pw.TableRow(
@@ -220,7 +292,7 @@ class ReportService {
           children: [
             _bodyCell(
                 '${index + 1}\n${_formatDateValue(detection['fecha_hora'])}'),
-            _bodyCell(pestName),
+            _bodyCell('$pestName\n\n$affectationDetails'),
             _bodyCell(parcelName),
             _bodyCell('${(confidence * 100).toStringAsFixed(1)}%'),
             _bodyCell('$locationText\n$locationOriginText'),
@@ -242,13 +314,37 @@ class ReportService {
       border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
       columnWidths: const {
         0: pw.FlexColumnWidth(1.45),
-        1: pw.FlexColumnWidth(1.7),
+        1: pw.FlexColumnWidth(2.3),
         2: pw.FlexColumnWidth(1.05),
         3: pw.FlexColumnWidth(1.75),
         4: pw.FlexColumnWidth(3),
       },
       children: rows,
     );
+  }
+
+  Map<String, int> _countAffectationLevels(
+    List<Map<String, dynamic>> detecciones,
+  ) {
+    final counts = <String, int>{
+      'BAJO': 0,
+      'MEDIO': 0,
+      'ALTO': 0,
+      'NO_EVALUADO': 0,
+      'NO_REGISTRADO': 0,
+    };
+
+    for (final detection in detecciones) {
+      final level =
+          detection['nivel_afectacion']?.toString().trim().toUpperCase();
+      if (level != null && counts.containsKey(level)) {
+        counts[level] = counts[level]! + 1;
+      } else {
+        counts['NO_REGISTRADO'] = counts['NO_REGISTRADO']! + 1;
+      }
+    }
+
+    return counts;
   }
 
   pw.Widget _headerCell(String text) {

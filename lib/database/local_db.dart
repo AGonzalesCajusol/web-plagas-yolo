@@ -53,6 +53,10 @@ class LocalDB {
         last_sync_at TEXT,
         sync_error TEXT,
         retry_count INTEGER DEFAULT 0,
+        nivel_afectacion TEXT,
+        metodo_evaluacion TEXT,
+        rango_afectacion TEXT,
+        recomendacion_version TEXT,
         FOREIGN KEY(cultivo_id) REFERENCES cultivos(id),
         FOREIGN KEY(plaga_id) REFERENCES plagas(id)
     );
@@ -70,7 +74,7 @@ class LocalDB {
 
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
       onConfigure: _onConfigure,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
@@ -121,6 +125,21 @@ class LocalDB {
       await db.execute('ALTER TABLE detecciones ADD COLUMN sync_error TEXT');
       await db.execute(
         'ALTER TABLE detecciones ADD COLUMN retry_count INTEGER DEFAULT 0',
+      );
+    }
+
+    if (oldVersion < 6) {
+      await db.execute(
+        'ALTER TABLE detecciones ADD COLUMN nivel_afectacion TEXT',
+      );
+      await db.execute(
+        'ALTER TABLE detecciones ADD COLUMN metodo_evaluacion TEXT',
+      );
+      await db.execute(
+        'ALTER TABLE detecciones ADD COLUMN rango_afectacion TEXT',
+      );
+      await db.execute(
+        'ALTER TABLE detecciones ADD COLUMN recomendacion_version TEXT',
       );
     }
   }

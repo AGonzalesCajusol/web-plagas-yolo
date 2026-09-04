@@ -4,10 +4,15 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../models/affectation_evaluation.dart';
+import '../../models/pest_recommendation.dart';
+import '../../services/affectation_level_service.dart';
 import '../../services/ai_service.dart';
 import '../../services/crop_service.dart';
 import '../../services/detection_service.dart';
+import '../../services/recommendation_service.dart';
 import '../../services/rice_classifier_service.dart';
+import '../../utils/pest_name_normalizer.dart';
 import '../crops/crops_screen.dart';
 
 class CaptureScreen extends StatefulWidget {
@@ -425,6 +430,18 @@ class _CaptureScreenState extends State<CaptureScreen> {
         return;
       }
 
+      if (yoloDecision != 'CONFIRMED') {
+        setState(() {
+          _lastDetection = null;
+        });
+
+        await _showYoloMessageDialog(
+          title: 'Resultado no disponible',
+          message: yoloMessage,
+        );
+        return;
+      }
+
       setState(() {
         _lastDetection = resultado;
       });
@@ -559,6 +576,446 @@ class _CaptureScreenState extends State<CaptureScreen> {
     );
   }
 
+  _EvaluationConfig? _evaluationConfigFor(String pestName) {
+    switch (PestNameNormalizer.normalize(pestName)) {
+      case 'Añublo bacteriano':
+        return const _EvaluationConfig(
+          pestName: 'Añublo bacteriano',
+          question:
+              '¿Qué proporción aproximada de la panícula presenta síntomas?',
+          options: [
+            _EvaluationOption(
+              code: '1_20',
+              title: 'Bajo · 1–20 %',
+              description: 'Afectación limitada en la panícula.',
+            ),
+            _EvaluationOption(
+              code: '21_40',
+              title: 'Medio · 21–40 %',
+              description:
+                  'Afectación visible en una parte importante de la panícula.',
+            ),
+            _EvaluationOption(
+              code: 'MAS_40',
+              title: 'Alto · Más de 40 %',
+              description: 'Afectación extensa de la panícula.',
+            ),
+            _EvaluationOption(
+              code: 'NO_EVALUADO',
+              title: 'No puedo determinarlo',
+              description: 'Requiere una evaluación de campo.',
+            ),
+          ],
+        );
+      case 'Hoja blanca':
+        return const _EvaluationConfig(
+          pestName: 'Hoja blanca',
+          question:
+              '¿Qué proporción aproximada de plantas del sector presenta síntomas?',
+          options: [
+            _EvaluationOption(
+              code: '1_10',
+              title: 'Bajo · 1–10 %',
+              description: 'Pocas plantas presentan síntomas visibles.',
+            ),
+            _EvaluationOption(
+              code: '11_30',
+              title: 'Medio · 11–30 %',
+              description:
+                  'Los síntomas aparecen en varias plantas del sector.',
+            ),
+            _EvaluationOption(
+              code: 'MAS_30',
+              title: 'Alto · Más de 30 %',
+              description: 'Los síntomas están ampliamente distribuidos.',
+            ),
+            _EvaluationOption(
+              code: 'NO_EVALUADO',
+              title: 'No puedo determinarlo',
+              description: 'Requiere una evaluación de campo.',
+            ),
+          ],
+        );
+      case 'Sogata':
+        return const _EvaluationConfig(
+          pestName: 'Sogata',
+          question: '¿Cómo describirías la presencia observada de Sogata?',
+          options: [
+            _EvaluationOption(
+              code: 'AISLADA',
+              title: 'Bajo · Presencia aislada',
+              description: 'Se observan pocos insectos y no hay daño evidente.',
+            ),
+            _EvaluationOption(
+              code: 'FRECUENTE',
+              title: 'Medio · Presencia frecuente',
+              description:
+                  'Se observa Sogata repetidamente en varias plantas o daño inicial.',
+            ),
+            _EvaluationOption(
+              code: 'ABUNDANTE',
+              title: 'Alto · Presencia abundante',
+              description:
+                  'Existe presencia importante del insecto y daño visible o síntomas asociados.',
+            ),
+            _EvaluationOption(
+              code: 'NO_EVALUADO',
+              title: 'No puedo determinarlo',
+              description: 'Se recomienda realizar un muestreo de campo.',
+            ),
+          ],
+        );
+      default:
+        return null;
+    }
+  }
+
+  Widget _buildAiConfidenceNote(TextTheme textTheme) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.info_outline,
+            color: Color(0xFF1D4ED8),
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'La confianza de la IA indica qué tan segura es la detección de la plaga. No representa el nivel de afectación del cultivo.',
+              style: textTheme.bodySmall?.copyWith(
+                color: const Color(0xFF1E3A8A),
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEvaluationCard({
+    required BuildContext context,
+    required _EvaluationConfig config,
+    required String? selectedRange,
+    required ValueChanged<String> onSelected,
+  }) {
+    const primaryGreen = Color(0xFF2E7D32);
+    const textPrimary = Color(0xFF1F2933);
+    const textSecondary = Color(0xFF6B7280);
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFDDE8DE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Nivel de afectación observado',
+            style: textTheme.titleMedium?.copyWith(
+              color: textPrimary,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            config.question,
+            style: textTheme.bodyMedium?.copyWith(
+              color: textSecondary,
+              height: 1.4,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 14),
+          for (var index = 0; index < config.options.length; index++) ...[
+            Builder(
+              builder: (context) {
+                final option = config.options[index];
+                final isSelected = option.code == selectedRange;
+
+                return Semantics(
+                  button: true,
+                  selected: isSelected,
+                  label: '${option.title}. ${option.description}',
+                  child: InkWell(
+                    onTap: () => onSelected(option.code),
+                    borderRadius: BorderRadius.circular(16),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFFE8F5E9)
+                            : const Color(0xFFF8FAF8),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected
+                              ? primaryGreen
+                              : const Color(0xFFDDE8DE),
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            isSelected
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
+                            color: isSelected ? primaryGreen : textSecondary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  option.title,
+                                  style: textTheme.bodyLarge?.copyWith(
+                                    color: textPrimary,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  option.description,
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: textSecondary,
+                                    height: 1.35,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            if (index < config.options.length - 1) const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Color _levelColor(String level) {
+    switch (level) {
+      case AffectationLevels.low:
+        return const Color(0xFF2E7D32);
+      case AffectationLevels.medium:
+        return const Color(0xFFF59E0B);
+      case AffectationLevels.high:
+        return const Color(0xFFC62828);
+      default:
+        return const Color(0xFF6B7280);
+    }
+  }
+
+  String _levelLabel(String level) {
+    switch (level) {
+      case AffectationLevels.low:
+        return 'Bajo';
+      case AffectationLevels.medium:
+        return 'Medio';
+      case AffectationLevels.high:
+        return 'Alto';
+      default:
+        return 'No evaluado';
+    }
+  }
+
+  Widget _buildRecommendationBlock({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String content,
+    required Color color,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAF8),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 21),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  title,
+                  style: textTheme.titleSmall?.copyWith(
+                    color: const Color(0xFF1F2933),
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            content,
+            style: textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF4B5563),
+              height: 1.45,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecommendationsCard({
+    required BuildContext context,
+    required AffectationEvaluation evaluation,
+    required PestRecommendation recommendation,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final levelColor = _levelColor(evaluation.nivel);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFDDE8DE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Nivel observado',
+            style: textTheme.labelLarge?.copyWith(
+              color: const Color(0xFF6B7280),
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: levelColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: levelColor.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.circle, color: levelColor, size: 12),
+                  const SizedBox(width: 7),
+                  Text(
+                    _levelLabel(evaluation.nivel),
+                    style: textTheme.labelLarge?.copyWith(
+                      color: levelColor,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (recommendation.warning != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ℹ Importante',
+                    style: textTheme.titleSmall?.copyWith(
+                      color: const Color(0xFF1E3A8A),
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    recommendation.warning!,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF1E3A8A),
+                      height: 1.45,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          _buildRecommendationBlock(
+            context: context,
+            icon: Icons.search,
+            title: 'Monitoreo',
+            content: recommendation.monitoring,
+            color: const Color(0xFF2563EB),
+          ),
+          const SizedBox(height: 10),
+          _buildRecommendationBlock(
+            context: context,
+            icon: Icons.eco_outlined,
+            title: 'Manejo cultural',
+            content: recommendation.culturalManagement,
+            color: const Color(0xFF2E7D32),
+          ),
+          const SizedBox(height: 10),
+          _buildRecommendationBlock(
+            context: context,
+            icon: Icons.shield_outlined,
+            title: 'Manejo integrado',
+            content: recommendation.integratedManagement,
+            color: const Color(0xFF7C3AED),
+          ),
+          const SizedBox(height: 10),
+          _buildRecommendationBlock(
+            context: context,
+            icon: Icons.warning_amber_rounded,
+            title: 'Control fitosanitario',
+            content: recommendation.phytosanitaryControl,
+            color: const Color(0xFFB45309),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showResultBottomSheet(Map<String, dynamic> resultado) {
     const primaryGreen = Color(0xFF2E7D32);
     const darkGreen = Color(0xFF1B5E20);
@@ -569,11 +1026,27 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
     final textTheme = Theme.of(context).textTheme;
     final plaga = resultado['plaga']?.toString() ?? 'Resultado desconocido';
-    final mensajeResultado =
-        resultado['mensaje']?.toString() ?? '$plaga detectada';
+    final evaluationConfig = _evaluationConfigFor(plaga);
+    if (evaluationConfig == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No se pudo preparar la evaluación de la plaga. Intenta nuevamente.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final confianza = resultado['confianza'];
     final confianzaValor = confianza is num ? confianza.toDouble() : 0.0;
     final confianzaPorcentaje = (confianzaValor * 100).round();
+    String? selectedRange;
+    AffectationEvaluation? evaluation;
+    PestRecommendation? recommendation;
+    var showRecommendations = false;
+    var allowSheetClose = false;
     var isSaving = false;
 
     showModalBottomSheet<void>(
@@ -592,314 +1065,211 @@ class _CaptureScreenState extends State<CaptureScreen> {
             final locationPreview =
                 _selectedParcelaLocation() ?? _LocationData.unavailable();
 
-            return SafeArea(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  22,
-                  4,
-                  22,
-                  24 + MediaQuery.of(context).viewInsets.bottom,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: backgroundColor,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: primaryGreen.withOpacity(0.08),
+            return PopScope<void>(
+              canPop: !showRecommendations || allowSheetClose,
+              onPopInvokedWithResult: (didPop, result) {
+                if (!didPop && showRecommendations && !isSaving) {
+                  setBottomSheetState(() {
+                    showRecommendations = false;
+                  });
+                }
+              },
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    22,
+                    4,
+                    22,
+                    24 + MediaQuery.of(context).viewInsets.bottom,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: backgroundColor,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: primaryGreen.withOpacity(0.08),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: lightGreen,
+                                borderRadius: BorderRadius.circular(17),
+                              ),
+                              child: const Icon(
+                                Icons.eco_outlined,
+                                color: primaryGreen,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Resultado de detección',
+                                    style: textTheme.titleLarge?.copyWith(
+                                      color: textPrimary,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Revisa el análisis antes de guardarlo',
+                                    style: textTheme.bodySmall?.copyWith(
+                                      color: textSecondary,
+                                      height: 1.35,
+                                      letterSpacing: 0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: lightGreen,
-                              borderRadius: BorderRadius.circular(17),
-                            ),
-                            child: const Icon(
-                              Icons.eco_outlined,
-                              color: primaryGreen,
-                              size: 28,
-                            ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: primaryGreen.withOpacity(0.08),
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          boxShadow: [
+                            BoxShadow(
+                              color: darkGreen.withOpacity(0.07),
+                              blurRadius: 24,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Plaga detectada',
+                              style: textTheme.labelLarge?.copyWith(
+                                color: textSecondary,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              evaluationConfig.pestName,
+                              style: textTheme.headlineSmall?.copyWith(
+                                color: textPrimary,
+                                fontWeight: FontWeight.w900,
+                                height: 1.12,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: lightGreen,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                'Detección confirmada',
+                                style: textTheme.labelMedium?.copyWith(
+                                  color: darkGreen,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
                               children: [
-                                Text(
-                                  'Resultado de detección',
-                                  style: textTheme.titleLarge?.copyWith(
-                                    color: textPrimary,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 0,
+                                Expanded(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(999),
+                                    child: LinearProgressIndicator(
+                                      value: confianzaValor
+                                          .clamp(0.0, 1.0)
+                                          .toDouble(),
+                                      minHeight: 9,
+                                      color: primaryGreen,
+                                      backgroundColor: lightGreen,
+                                    ),
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(width: 14),
                                 Text(
-                                  'Revisa el análisis antes de guardarlo',
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: textSecondary,
-                                    height: 1.35,
+                                  'Confianza IA: $confianzaPorcentaje %',
+                                  style: textTheme.titleMedium?.copyWith(
+                                    color: primaryGreen,
+                                    fontWeight: FontWeight.w900,
                                     letterSpacing: 0,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: primaryGreen.withOpacity(0.08),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: darkGreen.withOpacity(0.07),
-                            blurRadius: 24,
-                            offset: const Offset(0, 12),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Plaga detectada',
-                            style: textTheme.labelLarge?.copyWith(
-                              color: textSecondary,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            mensajeResultado,
-                            style: textTheme.headlineSmall?.copyWith(
-                              color: textPrimary,
-                              fontWeight: FontWeight.w900,
-                              height: 1.12,
-                              letterSpacing: 0,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(999),
-                                  child: LinearProgressIndicator(
-                                    value: confianzaValor
-                                        .clamp(0.0, 1.0)
-                                        .toDouble(),
-                                    minHeight: 9,
-                                    color: primaryGreen,
-                                    backgroundColor: lightGreen,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Text(
-                                '$confianzaPorcentaje%',
-                                style: textTheme.titleMedium?.copyWith(
-                                  color: primaryGreen,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: primaryGreen.withOpacity(0.08),
-                        ),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              color: lightGreen,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(
-                              Icons.location_on_outlined,
-                              color: primaryGreen,
-                              size: 22,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              '${locationPreview.message}\n'
-                              '${_formatLocation(locationPreview.latitude, locationPreview.longitude)}\n'
-                              '${_formatLocationOrigin(locationPreview.origin)}',
-                              style: textTheme.bodyMedium?.copyWith(
-                                color: textSecondary,
-                                height: 1.35,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: hasParcelaSeleccionada
-                            ? Colors.white
-                            : const Color(0xFFFFEBEE),
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: hasParcelaSeleccionada
-                              ? primaryGreen.withOpacity(0.08)
-                              : const Color(0xFFC62828).withOpacity(0.14),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  hasParcelaSeleccionada
-                                      ? 'Parcela: $parcelaNombre'
-                                      : 'No tienes parcelas registradas',
-                                  style: textTheme.bodyMedium?.copyWith(
-                                    color: hasParcelaSeleccionada
-                                        ? textPrimary
-                                        : const Color(0xFFC62828),
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0,
-                                  ),
-                                ),
-                              ),
-                              if (hasParcelaSeleccionada)
-                                TextButton(
-                                  onPressed: () =>
-                                      _changeParcelaForPendingDetection(
-                                    () => setBottomSheetState(() {}),
-                                  ),
-                                  child: const Text('Cambiar'),
-                                ),
-                            ],
-                          ),
-                          if (!hasParcelaSeleccionada) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              'Debe seleccionar o registrar una parcela antes de guardar la detección.',
-                              style: textTheme.bodySmall?.copyWith(
-                                color: const Color(0xFFC62828),
-                                fontWeight: FontWeight.w700,
-                                height: 1.35,
-                                letterSpacing: 0,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            FilledButton.icon(
-                              onPressed: () async {
-                                await _openCropsScreenFromCapture();
-                                if (context.mounted) {
-                                  setBottomSheetState(() {});
-                                }
-                              },
-                              icon: const Icon(Icons.add_location_alt_outlined),
-                              label: const Text('Agregar parcela'),
-                            ),
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 18),
-                    StatefulBuilder(
-                      builder: (buttonContext, setButtonState) {
-                        return ElevatedButton(
-                          onPressed: isSaving || !hasParcelaSeleccionada
+                      const SizedBox(height: 14),
+                      _buildAiConfidenceNote(textTheme),
+                      const SizedBox(height: 14),
+                      if (!showRecommendations) ...[
+                        _buildEvaluationCard(
+                          context: context,
+                          config: evaluationConfig,
+                          selectedRange: selectedRange,
+                          onSelected: (range) {
+                            setBottomSheetState(() {
+                              selectedRange = range;
+                              evaluation = null;
+                              recommendation = null;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 18),
+                        ElevatedButton.icon(
+                          onPressed: selectedRange == null
                               ? null
-                              : () async {
-                                  final imageBytes = _selectedImageBytes;
-                                  if (imageBytes == null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'No hay imagen para guardar.',
-                                        ),
-                                        backgroundColor: Colors.red,
-                                      ),
+                              : () {
+                                  try {
+                                    final preparedEvaluation =
+                                        const AffectationLevelService()
+                                            .evaluate(
+                                      pestName: plaga,
+                                      range: selectedRange!,
                                     );
-                                    return;
-                                  }
-
-                                  setButtonState(() {
-                                    isSaving = true;
-                                  });
-
-                                  final location =
-                                      await _resolveLocationForSave();
-
-                                  final success =
-                                      await DetectionService().saveDetection(
-                                    userId: widget.userId,
-                                    plagaNombre: plaga,
-                                    confianza: confianzaValor,
-                                    latitud: location.latitude,
-                                    longitud: location.longitude,
-                                    ubicacionOrigen: location.origin,
-                                    imageBytes: imageBytes,
-                                    cultivoId: _parcelaSeleccionadaId,
-                                    boundingBox: _lastDetection?['box'] is Rect
-                                        ? _lastDetection!['box'] as Rect
-                                        : null,
-                                  );
-
-                                  if (!mounted) return;
-
-                                  if (success) {
-                                    Navigator.pop(this.context);
-                                    ScaffoldMessenger.of(this.context)
-                                        .showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Detección guardada en el historial',
-                                        ),
-                                        backgroundColor: Colors.green,
-                                      ),
+                                    final preparedRecommendation =
+                                        const RecommendationService().recommend(
+                                      pestName: plaga,
+                                      level: preparedEvaluation.nivel,
                                     );
-                                  } else {
-                                    setButtonState(() {
-                                      isSaving = false;
+
+                                    setBottomSheetState(() {
+                                      evaluation = preparedEvaluation;
+                                      recommendation = preparedRecommendation;
+                                      showRecommendations = true;
                                     });
+                                  } catch (_) {
                                     ScaffoldMessenger.of(this.context)
                                         .showSnackBar(
                                       const SnackBar(
                                         content: Text(
-                                          'No se pudo guardar la detección.',
+                                          'No se pudo preparar la evaluación de la plaga. Intenta nuevamente.',
                                         ),
                                         backgroundColor: Colors.red,
                                       ),
@@ -910,7 +1280,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                             backgroundColor: darkGreen,
                             foregroundColor: Colors.white,
                             disabledBackgroundColor:
-                                darkGreen.withOpacity(0.45),
+                                darkGreen.withValues(alpha: 0.45),
                             disabledForegroundColor: Colors.white,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -918,39 +1288,279 @@ class _CaptureScreenState extends State<CaptureScreen> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          child: isSaving
-                              ? const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                          Colors.white,
-                                        ),
+                          icon: const Icon(Icons.recommend_outlined),
+                          label: const Text('Ver recomendaciones'),
+                        ),
+                      ] else ...[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: isSaving
+                                ? null
+                                : () {
+                                    setBottomSheetState(() {
+                                      showRecommendations = false;
+                                    });
+                                  },
+                            icon: const Icon(Icons.arrow_back),
+                            label: const Text('Modificar nivel'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildRecommendationsCard(
+                          context: context,
+                          evaluation: evaluation!,
+                          recommendation: recommendation!,
+                        ),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: primaryGreen.withOpacity(0.08),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: lightGreen,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: const Icon(
+                                  Icons.location_on_outlined,
+                                  color: primaryGreen,
+                                  size: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  '${locationPreview.message}\n'
+                                  '${_formatLocation(locationPreview.latitude, locationPreview.longitude)}\n'
+                                  '${_formatLocationOrigin(locationPreview.origin)}',
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: textSecondary,
+                                    height: 1.35,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: hasParcelaSeleccionada
+                                ? Colors.white
+                                : const Color(0xFFFFEBEE),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: hasParcelaSeleccionada
+                                  ? primaryGreen.withOpacity(0.08)
+                                  : const Color(0xFFC62828).withOpacity(0.14),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      hasParcelaSeleccionada
+                                          ? 'Parcela: $parcelaNombre'
+                                          : 'No tienes parcelas registradas',
+                                      style: textTheme.bodyMedium?.copyWith(
+                                        color: hasParcelaSeleccionada
+                                            ? textPrimary
+                                            : const Color(0xFFC62828),
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0,
                                       ),
                                     ),
-                                    SizedBox(width: 10),
-                                    Text('Guardando...'),
-                                  ],
-                                )
-                              : const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.save_outlined),
-                                    SizedBox(width: 8),
-                                    Text('Guardar en historial'),
-                                  ],
+                                  ),
+                                  if (hasParcelaSeleccionada)
+                                    TextButton(
+                                      onPressed: () =>
+                                          _changeParcelaForPendingDetection(
+                                        () => setBottomSheetState(() {}),
+                                      ),
+                                      child: const Text('Cambiar'),
+                                    ),
+                                ],
+                              ),
+                              if (!hasParcelaSeleccionada) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Debe seleccionar o registrar una parcela antes de guardar la detección.',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: const Color(0xFFC62828),
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.35,
+                                    letterSpacing: 0,
+                                  ),
                                 ),
-                        );
-                      },
-                    ),
-                  ],
+                                const SizedBox(height: 12),
+                                FilledButton.icon(
+                                  onPressed: () async {
+                                    await _openCropsScreenFromCapture();
+                                    if (context.mounted) {
+                                      setBottomSheetState(() {});
+                                    }
+                                  },
+                                  icon: const Icon(
+                                      Icons.add_location_alt_outlined),
+                                  label: const Text('Agregar parcela'),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        StatefulBuilder(
+                          builder: (buttonContext, _) {
+                            return ElevatedButton(
+                              onPressed: isSaving || !hasParcelaSeleccionada
+                                  ? null
+                                  : () async {
+                                      final imageBytes = _selectedImageBytes;
+                                      if (imageBytes == null) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'No hay imagen para guardar.',
+                                            ),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      setBottomSheetState(() {
+                                        isSaving = true;
+                                      });
+
+                                      final location =
+                                          await _resolveLocationForSave();
+
+                                      final success = await DetectionService()
+                                          .saveDetection(
+                                        userId: widget.userId,
+                                        plagaNombre: plaga,
+                                        confianza: confianzaValor,
+                                        latitud: location.latitude,
+                                        longitud: location.longitude,
+                                        ubicacionOrigen: location.origin,
+                                        imageBytes: imageBytes,
+                                        cultivoId: _parcelaSeleccionadaId,
+                                        boundingBox:
+                                            _lastDetection?['box'] is Rect
+                                                ? _lastDetection!['box'] as Rect
+                                                : null,
+                                        nivelAfectacion: evaluation!.nivel,
+                                        metodoEvaluacion: evaluation!.metodo,
+                                        rangoAfectacion: evaluation!.rango,
+                                        recomendacionVersion:
+                                            recommendation!.version,
+                                      );
+
+                                      if (!mounted || !context.mounted) return;
+
+                                      if (success) {
+                                        setBottomSheetState(() {
+                                          allowSheetClose = true;
+                                        });
+                                        WidgetsBinding.instance
+                                            .addPostFrameCallback((_) {
+                                          if (!mounted || !context.mounted) {
+                                            return;
+                                          }
+                                          Navigator.pop(context);
+                                          ScaffoldMessenger.of(this.context)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Detección guardada en el historial',
+                                              ),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
+                                        });
+                                      } else {
+                                        setBottomSheetState(() {
+                                          isSaving = false;
+                                        });
+                                        ScaffoldMessenger.of(this.context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'No se pudo guardar la detección.',
+                                            ),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: darkGreen,
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor:
+                                    darkGreen.withOpacity(0.45),
+                                disabledForegroundColor: Colors.white,
+                                elevation: 0,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: isSaving
+                                  ? const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text('Guardando...'),
+                                      ],
+                                    )
+                                  : const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.save_outlined),
+                                        SizedBox(width: 8),
+                                        Text('Guardar detección'),
+                                      ],
+                                    ),
+                            );
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             );
@@ -1185,8 +1795,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(16),
                                       borderSide: BorderSide(
-                                        color:
-                                            primaryGreen.withOpacity(0.12),
+                                        color: primaryGreen.withOpacity(0.12),
                                       ),
                                     ),
                                   ),
@@ -1366,8 +1975,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
                       width: double.infinity,
                       height: 58,
                       child: ElevatedButton.icon(
-                        onPressed:
-                            isImageLoaded && !_isAnalyzing ? _analyzeCrop : null,
+                        onPressed: isImageLoaded && !_isAnalyzing
+                            ? _analyzeCrop
+                            : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: darkGreen,
                           foregroundColor: Colors.white,
@@ -1512,4 +2122,28 @@ class _LocationData {
   final double? longitude;
   final String origin;
   final String message;
+}
+
+class _EvaluationConfig {
+  const _EvaluationConfig({
+    required this.pestName,
+    required this.question,
+    required this.options,
+  });
+
+  final String pestName;
+  final String question;
+  final List<_EvaluationOption> options;
+}
+
+class _EvaluationOption {
+  const _EvaluationOption({
+    required this.code,
+    required this.title,
+    required this.description,
+  });
+
+  final String code;
+  final String title;
+  final String description;
 }
